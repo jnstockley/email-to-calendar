@@ -1,0 +1,37 @@
+---
+name: Python Starter Project (Dev)
+services:
+  python-starter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: python-starter-dev
+    env_file:
+      - .env
+    # Add ports if needed
+    # ports:
+    #   - '0.0.0.0:5001:5000'
+    restart: unless-stopped
+    # Add healthcheck if needed
+    # healthcheck:
+    #   test: curl --fail http://localhost:5000/health-check || exit 1
+    #   interval: 60s
+    #   retries: 5
+    #   start_period: 20s
+    #   timeout: 10s
+    develop:
+      watch:
+        - action: rebuild
+          path: Dockerfile
+        - action: rebuild
+          path: src/
+        - action: rebuild
+          path: pyproject.toml
+        - action: rebuild
+          path: uv.lock
+        - action: sync+restart
+          path: compose-dev.yml
+          target: python-starter
+        - action: sync+restart
+          path: .env
+          target: python-starter

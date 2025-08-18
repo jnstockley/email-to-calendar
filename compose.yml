@@ -1,0 +1,11 @@
+# dclint disable service-image-require-explicit-tag
+---
+name: Python Starter Project
+services:
+  python-starter:
+    image: jnstockley/python-starter:latest
+    # Update image to <DOCKER_USERNAME>/<REPO_NAME>
+    container_name: python-starter
+    env_file:
+      - .env
+    restart: unless-stopped

@@ -1,0 +1,293 @@
+---
+name: Lint, Test, and Deploy
+
+on:
+  release:
+    types: [published]
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - src/**
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/**.yml
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Step 1 - Checkout
+        uses: actions/checkout@v5
+
+      - name: Step 2 - Setup Python
+
+        uses: actions/setup-python@v5
+        with:
+          check-latest: true
+
+      - name: Step 3 - Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Step 4 - Install External Linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint shellcheck shfmt
+
+      - name: Step 5 - Run Linters
+        run: ./scripts/lint.sh
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Step 1 - Checkout
+        uses: actions/checkout@v5
+
+      - name: Step 2 - Setup Python
+        uses: actions/setup-python@v5
+        with:
+          check-latest: true
+
+      - name: Step 3 - Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Step 4 - Install Packages
+        run: uv sync --frozen
+
+      - name: Step 5 - Run Tests
+        run: |
+          export PYTHONPATH=src/:$PYTHONPATH
+          uv run pytest --cov src --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+      - name: Step 6 - Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Step 7 - Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  pypi-publish:
+    if: github.event_name == 'release' || github.ref_name == 'main'
+    needs:
+      - lint
+      - test
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Step 1 -Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Step 2 - Setup Python
+        uses: actions/setup-python@v5
+        with:
+          check-latest: true
+
+      - name: Step 3 - Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Step 4 - Install Packages
+        run: uv sync --frozen
+
+      - name: Step 5 - Create version tag
+        if: github.event_name == 'release'
+        run: echo "VERSION=$(echo ${{ github.event.release.tag_name }} | sed 's/^v//')" >> "$GITHUB_ENV"
+
+      - name: Step 5 - Create testing version tag for main branch
+        if: github.ref_name == 'main'
+        run: echo "VERSION=$(date +'%Y%m%d%H%M%S').dev" >> "$GITHUB_ENV"
+
+      - name: Step 6 - Get repository description
+        id: get-repo-description
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const repo = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            return repo.data.description;
+          result-encoding: string
+
+      - name: Step 7 - Update version in pyproject.toml
+        run: |
+          # Replace version in pyproject.toml with the release tag (without 'v' prefix if present)
+          VERSION=${{ env.VERSION }}
+          DESCRIPTION="${{ steps.get-repo-description.outputs.result }}"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          sed -i "s/^description = \".*\"/description = \"$DESCRIPTION\"/" pyproject.toml
+
+      - name: Step 8 - Build package
+        run: uv build
+
+      - name: Step 9 - Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  deploy_docker_image:
+    if: github.event_name == 'release' || github.ref_name == 'main'
+    needs:
+      - lint
+      - test
+    name: Deploy Docker Image
+    runs-on: ubuntu-latest
+    environment: docker
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Step 1 - Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Step 2 - Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Step 3 - Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Step 4 - Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Step 5 - Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Step 6 - Create version tag
+        if: github.event_name == 'release'
+        run: echo "VERSION=$(echo ${{ github.event.release.tag_name }} | sed 's/^v//')" >> "$GITHUB_ENV"
+
+      - name: Step 6 - Create testing version tag for main branch
+        if: github.ref_name == 'main'
+        run: echo "VERSION=$(date +'%Y%m%d%H%M%S').dev" >> "$GITHUB_ENV"
+
+      - name: Step 7 - Extract metadata for release
+        id: release
+        if: github.event_name == 'release' && !github.event.release.prerelease
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+            ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
+          tags: |
+            latest
+            ${{ github.event.release.tag_name }}
+
+      - name: Step 7 - Extract metadata for pre-release
+        id: testing
+        if: github.event_name == 'release' && github.event.release.prerelease
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+            ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
+          tags: |
+            testing
+            ${{ github.event.release.tag_name }}
+
+      - name: Step 7 - Extract metadata for main branch
+        id: dev
+        if: github.ref_name == 'main'
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+            ghcr.io/${{ github.actor }}/${{ github.event.repository.name }}
+          tags: |
+            dev
+            ${{ env.VERSION }}
+
+      - name: Step 8 - Update version in pyproject.toml
+        run: |
+          # Replace version in pyproject.toml with the release tag (without 'v' prefix if present)
+          VERSION=${{ env.VERSION }}
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+
+      - name: Step 8 - Get repository description
+        id: get-repo-description
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const repo = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            return repo.data.description;
+          result-encoding: string
+
+      - name: Step 9 - Generate RFC 3339 datetime
+        id: generate-datetime
+        run: |
+          RFC3339_DATETIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "RFC3339_DATETIME=$RFC3339_DATETIME" >> $GITHUB_ENV
+
+      - name: Step 10 - Extract base image digest
+        id: baseimage
+        run: |
+          BASE_IMAGE=$(grep -m 1 "^FROM" Dockerfile | sed 's/FROM //')
+          BASE_DIGEST=$(docker pull $BASE_IMAGE 2>/dev/null | grep -m 1 "Digest:" | sed 's/Digest: //')
+          echo "BASE_DIGEST=$BASE_DIGEST" >> $GITHUB_ENV
+          echo "BASE_IMAGE=$BASE_IMAGE" >> $GITHUB_ENV
+
+      - name: Step 11 - Build and push Docker images
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args:
+            VERSION=${{ env.VERSION }}
+          push: true
+          tags: ${{ steps.release.outputs.tags || steps.testing.outputs.tags || steps.dev.outputs.tags }}
+          annotations: |
+            org.opencontainers.image.created=${{ env.RFC3339_DATETIME }}
+            org.opencontainers.image.authors=${{ github.actor }}
+            org.opencontainers.image.url=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.documentation=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.source=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.vendor=${{ github.actor }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.ref.name=${{ github.ref_name }}
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ steps.get-repo-description.outputs.result }}
+            org.opencontainers.image.base.digest=${{ env.BASE_DIGEST }}
+            org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
+          labels: |
+            org.opencontainers.image.created=${{ env.RFC3339_DATETIME }}
+            org.opencontainers.image.authors=${{ github.actor }}
+            org.opencontainers.image.url=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.documentation=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.source=https://github.com/${{ github.actor }}/${{ github.event.repository.name }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.vendor=${{ github.actor }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.ref.name=${{ github.ref_name }}
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ steps.get-repo-description.outputs.result }}
+            org.opencontainers.image.base.digest=${{ env.BASE_DIGEST }}
+            org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
+
+      - name: Step 12 - Update Docker Description and README
+        uses: peter-evans/dockerhub-description@v4.0.2
+        if: github.event_name == 'release'
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+          short-description: ${{ steps.get-repo-description.outputs.result }}
