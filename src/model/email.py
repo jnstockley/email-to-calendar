@@ -13,7 +13,9 @@ class EMail(Base):
     from_address = Column(String, nullable=False)
     delivery_date = Column(DateTime, nullable=False)
     body = Column(String, nullable=False)
-    retrieved_date = Column(DateTime, nullable=False, default=lambda: datetime.now(tzlocal.get_localzone()))
+    retrieved_date = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(tzlocal.get_localzone())
+    )
 
     def __repr__(self):
         return f"<EMail(id={self.id}, subject={self.subject}, from_address={self.from_address}, delivery_date={self.delivery_date})>"
@@ -65,7 +67,9 @@ class EMail(Base):
     def get_by_delivery_date(delivery_date: datetime):
         session = SessionLocal()
         try:
-            return session.query(EMail).filter(EMail.delivery_date == delivery_date).all()
+            return (
+                session.query(EMail).filter(EMail.delivery_date == delivery_date).all()
+            )
         finally:
             session.close()
 

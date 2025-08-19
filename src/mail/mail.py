@@ -7,7 +7,6 @@ from typing import Optional
 
 from src import logger
 from src.model.email import EMail
-from src.db import SessionLocal, engine, Base
 
 
 def authenticate(host: str, port: int, user: str, password: str, ssl: bool = True):
@@ -20,14 +19,21 @@ def authenticate(host: str, port: int, user: str, password: str, ssl: bool = Tru
         client = __connect_imap_starttls(host, port, user, password)
     return client
 
-def get_emails_by_filter(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, from_email: str = None, subject: str = None, since: datetime = None, mailbox: str = "INBOX" ):
+
+def get_emails_by_filter(
+    client: imaplib.IMAP4 | imaplib.IMAP4_SSL,
+    from_email: str = None,
+    subject: str = None,
+    since: datetime = None,
+    mailbox: str = "INBOX",
+):
     search_str: str = ""
     if from_email:
         search_str += f'FROM "{from_email}" '
     if subject:
         search_str += f'SUBJECT "{subject}" '
     if since:
-        search_str += f'SINCE {since.strftime("%d-%b-%Y")} '
+        search_str += f"SINCE {since.strftime('%d-%b-%Y')} "
     if not search_str:
         logger.error("At least one filter (from_email or subject) must be provided")
         raise ValueError("At least one filter (from_email or subject) must be provided")
@@ -53,13 +59,15 @@ def get_emails_by_filter(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, from_email: 
 
         msg = email.message_from_bytes(raw, policy=default)
         body = __pick_best_text(msg)
-        emails.append(EMail(
-            id=int(email_id.decode()),
-            subject=msg.get('subject', ''),
-            from_address=msg.get('from', ''),
-            delivery_date=parsedate_to_datetime(msg.get('date')),
-            body=body or "(No printable text body)"
-        ))
+        emails.append(
+            EMail(
+                id=int(email_id.decode()),
+                subject=msg.get("subject", ""),
+                from_address=msg.get("from", ""),
+                delivery_date=parsedate_to_datetime(msg.get("date")),
+                body=body or "(No printable text body)",
+            )
+        )
     return emails
 
 
@@ -72,8 +80,10 @@ def __connect_imap_ssl(host: str, port: int, user: str, password: str):
         logger.error(f"IMAP authentication failed: {e}")
         raise ConnectionError(f"IMAP authentication/connection failed: {e}")
 
+
 def __connect_imap_starttls(host: str, port: int, user: str, password: str):
     import ssl
+
     try:
         client = imaplib.IMAP4(host, port)
     except imaplib.IMAP4.error as e:
@@ -110,6 +120,7 @@ def __connect_imap_starttls(host: str, port: int, user: str, password: str):
         logger.error("IMAP authentication failed: %s", e)
         raise ConnectionError(f"IMAP authentication failed: {e}")
 
+
 def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
     if part_msg.is_multipart():
         plain = None
@@ -125,6 +136,7 @@ def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
         if part_msg.get_content_type() in ("text/plain", "text/html"):
             return part_msg.get_content()
     return None
+
 
 def __get_email(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, email_id: str) -> bytes:
     raw = __fetch_first_bytes(client, email_id, "(RFC822)")
@@ -142,6 +154,10 @@ def __fetch_first_bytes(client, email_id: str, spec: str) -> Optional[bytes]:
     if status != "OK" or not msg_data:
         return None
     for part in msg_data:
-        if isinstance(part, tuple) and len(part) > 1 and isinstance(part[1], (bytes, bytearray)):
+        if (
+            isinstance(part, tuple)
+            and len(part) > 1
+            and isinstance(part[1], (bytes, bytearray))
+        ):
             return part[1]
     return None

@@ -18,7 +18,7 @@ def main():
 
     from_email = os.environ["FILTER_FROM_EMAIL"]
     subject = os.environ["FILTER_SUBJECT"]
-    backfill: bool = os.environ.get("FILTER_BACKFILL", "false").lower() == "true"
+    # backfill: bool = os.environ.get("FILTER_BACKFILL", "false").lower() == "true"
 
     db_path = os.path.join(os.path.dirname(__file__), db_file)
     db_exists = os.path.exists(db_path)
@@ -38,13 +38,24 @@ def main():
 
     try:
         if has_record:
-            logger.info("Database has existing records, retrieving emails since the most recent record")
+            logger.info(
+                "Database has existing records, retrieving emails since the most recent record"
+            )
             most_recent_email: EMail = EMail.get_most_recent()
-            logger.info("Searching for emails since: %s", most_recent_email.delivery_date)
-            emails = mail.get_emails_by_filter(client, from_email=from_email, subject=subject, since=most_recent_email.delivery_date)
+            logger.info(
+                "Searching for emails since: %s", most_recent_email.delivery_date
+            )
+            emails = mail.get_emails_by_filter(
+                client,
+                from_email=from_email,
+                subject=subject,
+                since=most_recent_email.delivery_date,
+            )
         else:
             logger.info("No existing records found, retrieving all emails")
-            emails = mail.get_emails_by_filter(client, from_email=from_email, subject=subject)
+            emails = mail.get_emails_by_filter(
+                client, from_email=from_email, subject=subject
+            )
 
         logger.info("Retrieved %d emails", len(emails))
 
@@ -55,7 +66,6 @@ def main():
         raise e
     finally:
         client.logout()
-
 
 
 if __name__ == "__main__":
