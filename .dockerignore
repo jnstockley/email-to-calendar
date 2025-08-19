@@ -177,3 +177,5 @@ cython_debug/
 .github
 scripts
 tests
+data/
+logs/

@@ -5,7 +5,9 @@ from email.policy import default
 from email.utils import parsedate_to_datetime
 from typing import Optional
 
+from src import logger
 from src.model.email import EMail
+from src.db import SessionLocal, engine, Base
 
 
 def authenticate(host: str, port: int, user: str, password: str, ssl: bool = True):
@@ -27,14 +29,17 @@ def get_emails_by_filter(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, from_email: 
     if since:
         search_str += f'SINCE {since.strftime("%d-%b-%Y")} '
     if not search_str:
+        logger.error("At least one filter (from_email or subject) must be provided")
         raise ValueError("At least one filter (from_email or subject) must be provided")
 
     status, _ = client.select(mailbox)
     if status != "OK":
+        logger.error(f"Failed to select mailbox '{mailbox}': {status}")
         raise ConnectionError(f"Failed to select mailbox '{mailbox}': {status}")
 
     status, data = client.search(None, search_str.strip())
     if status != "OK":
+        logger.error(f"Failed to search emails: {data}")
         raise ValueError(f"Failed to search emails: {data}")
 
     email_ids: list[str] = data[0].split()
@@ -64,6 +69,7 @@ def __connect_imap_ssl(host: str, port: int, user: str, password: str):
         client.login(user, password)
         return client
     except imaplib.IMAP4.error as e:
+        logger.error(f"IMAP authentication failed: {e}")
         raise ConnectionError(f"IMAP authentication/connection failed: {e}")
 
 def __connect_imap_starttls(host: str, port: int, user: str, password: str):
@@ -71,23 +77,27 @@ def __connect_imap_starttls(host: str, port: int, user: str, password: str):
     try:
         client = imaplib.IMAP4(host, port)
     except imaplib.IMAP4.error as e:
+        logger.error(f"IMAP connection failed: {e}")
         raise ConnectionError(f"IMAP connection (plain) failed: {e}")
 
     # Get capabilities before STARTTLS
     typ, caps = client.capability()
     if typ != "OK":
+        logger.error("Failed to get IMAP capabilities prior to STARTTLS")
         raise ConnectionError("Failed to get capabilities prior to STARTTLS")
 
     # Normalize capabilities list to strings
     cap_set = {c.decode().upper() for c in caps}
 
     if "STARTTLS" not in cap_set:
+        logger.error("Server does not advertise STARTTLS capability")
         raise ConnectionError("Server does not advertise STARTTLS capability")
 
     context = ssl.create_default_context()
     try:
         client.starttls(context)
     except (imaplib.IMAP4.error, ssl.SSLError) as e:
+        logger.error(f"STARTTLS negotiation failed: {e}")
         raise ConnectionError(f"STARTTLS negotiation failed: {e}")
 
     # (Re)fetch capabilities after STARTTLS if needed (some servers change them)
@@ -97,6 +107,7 @@ def __connect_imap_starttls(host: str, port: int, user: str, password: str):
         client.login(user, password)
         return client
     except imaplib.IMAP4.error as e:
+        logger.error("IMAP authentication failed: %s", e)
         raise ConnectionError(f"IMAP authentication failed: {e}")
 
 def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
@@ -118,8 +129,10 @@ def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
 def __get_email(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, email_id: str) -> bytes:
     raw = __fetch_first_bytes(client, email_id, "(RFC822)")
     if raw is None:
+        logger.debug("Fetching full email failed, trying BODY[]")
         raw = __fetch_first_bytes(client, email_id, "(BODY[])")
     if raw is None:
+        logger.error(f"Failed to fetch email with ID {email_id}")
         raise ValueError(f"Failed to fetch email with ID {email_id}")
     return raw
 
