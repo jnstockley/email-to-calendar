@@ -1,7 +1,7 @@
 [project]
 name = "email-to-calendar"
 version = "0.1.0"
-description = "Add your description here"
+description = "Takes emails from an IMAP server, parses that body, using regex, and creates event(s) in an iCal calendar"
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
