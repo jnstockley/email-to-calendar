@@ -10,9 +10,6 @@ db_file = os.environ.get("DB_FILE", "../data/emails.db")
 if not os.path.isdir("../logs"):
     os.makedirs("../logs")
 
-if not os.path.exists(os.path.join(os.path.dirname(__file__), "../logs/emails.log")):
-    open(os.path.join(os.path.dirname(__file__), "../logs/emails.log"), "w").close()
-
 log_file = os.path.join(os.path.dirname(__file__), "../logs/emails.log")
 
 

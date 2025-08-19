@@ -62,6 +62,7 @@ jobs:
       - name: Step 5 - Run Tests
         run: |
           export PYTHONPATH=src/:$PYTHONPATH
+          mkdir -p logs/
           uv run pytest --cov src --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
       - name: Step 6 - Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
