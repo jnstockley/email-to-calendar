@@ -2,7 +2,13 @@ import os
 import sys
 import logging
 
+if not os.path.isdir("../data"):
+    os.makedirs("../data")
+
 db_file = os.environ.get("DB_FILE", "../data/emails.db")
+
+if not os.path.isdir("../logs"):
+    os.makedirs("../logs")
 
 log_file = os.path.join(os.path.dirname(__file__), "../logs/emails.log")
 
