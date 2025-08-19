@@ -29,7 +29,9 @@ class StderrFilter(logging.Filter):
 logger = logging.getLogger("email_logger")
 logger.setLevel(logging.DEBUG)
 
-log_format = "%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d %(message)s"
+log_format = (
+    "%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d %(message)s"
+)
 
 # Handler for stdout (INFO and below)
 stdout_handler = logging.StreamHandler(sys.stdout)
