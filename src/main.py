@@ -8,6 +8,8 @@ from src.model.email import EMail
 
 
 def main():
+    logger.info("Starting email retrieval process")
+
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
@@ -30,7 +32,6 @@ def main():
         session = SessionLocal()
         try:
             has_record = len(EMail.get_all()) > 0
-            logger.info("")
         finally:
             session.close()
 
@@ -69,5 +70,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logger.info("Starting email retrieval process")
     main()
