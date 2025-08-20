@@ -5,6 +5,7 @@ description = "Takes emails from an IMAP server, parses that body, using regex, 
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
+    "caldav>=2.0.1",
     "sqlalchemy>=2.0.43",
     "tzlocal>=5.3.1",
 ]

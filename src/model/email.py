@@ -1,9 +1,16 @@
 from datetime import datetime
+import enum
 
 import tzlocal
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Enum
+from sqlalchemy.orm import relationship
 
 from src.db import Base, SessionLocal
+
+
+class EMailType(enum.Enum):
+    PLAIN = "plain"
+    HTML = "html"
 
 
 class EMail(Base):
@@ -16,6 +23,9 @@ class EMail(Base):
     retrieved_date = Column(
         DateTime, nullable=False, default=lambda: datetime.now(tzlocal.get_localzone())
     )
+    email_type = Column(Enum(EMailType), nullable=False)
+
+    events = relationship("Event", back_populates="email", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<EMail(id={self.id}, subject={self.subject}, from_address={self.from_address}, delivery_date={self.delivery_date})>"

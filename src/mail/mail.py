@@ -58,7 +58,7 @@ def get_emails_by_filter(
         raw = __get_email(client, email_id)
 
         msg = email.message_from_bytes(raw, policy=default)
-        body = __pick_best_text(msg)
+        email_type, body = __pick_best_text(msg)
         emails.append(
             EMail(
                 id=int(email_id.decode()),
@@ -66,6 +66,7 @@ def get_emails_by_filter(
                 from_address=msg.get("from", ""),
                 delivery_date=parsedate_to_datetime(msg.get("date")),
                 body=body or "(No printable text body)",
+                email_type=email_type.upper() or "PLAIN",
             )
         )
     return emails
@@ -121,7 +122,8 @@ def __connect_imap_starttls(host: str, port: int, user: str, password: str):
         raise ConnectionError(f"IMAP authentication failed: {e}")
 
 
-def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
+def __pick_best_text(part_msg: email.message.EmailMessage) -> tuple[str | None, str]:
+    email_type = None
     if part_msg.is_multipart():
         plain = None
         html = None
@@ -129,13 +131,17 @@ def __pick_best_text(part_msg: email.message.EmailMessage) -> Optional[str]:
             ctype = part.get_content_type()
             if ctype == "text/plain" and plain is None:
                 plain = part.get_content()
+                email_type = "plain"
             elif ctype == "text/html" and html is None:
                 html = part.get_content()
-        return plain or html
+                email_type = "plain"
+        return email_type, (plain or html)
     else:
         if part_msg.get_content_type() in ("text/plain", "text/html"):
-            return part_msg.get_content()
-    return None
+            email_type = part_msg.get_content_type().replace("text/", "")
+            content = part_msg.get_content()
+            return email_type, content
+    return email_type, ""
 
 
 def __get_email(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, email_id: str) -> bytes:

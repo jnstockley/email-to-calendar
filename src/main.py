@@ -2,6 +2,10 @@ import os
 from sqlalchemy import inspect
 
 from src import db_file, logger
+from src.events.caldav import add_to_caldav
+from src.model.event import Event
+from src.util import text
+from src.events import event
 from src.mail import mail
 from src.db import Base, engine, SessionLocal
 from src.model.email import EMail
@@ -13,14 +17,14 @@ def main():
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
-    host = os.environ["IMAP_HOST"]
-    port = int(os.environ["IMAP_PORT"])
-    username = os.environ["IMAP_USERNAME"]
-    password = os.environ["IMAP_PASSWORD"]
+    imap_host = os.environ["IMAP_HOST"]
+    imap_port = int(os.environ["IMAP_PORT"])
+    imap_username = os.environ["IMAP_USERNAME"]
+    imap_password = os.environ["IMAP_PASSWORD"]
 
     from_email = os.environ["FILTER_FROM_EMAIL"]
     subject = os.environ["FILTER_SUBJECT"]
-    # backfill: bool = os.environ.get("FILTER_BACKFILL", "false").lower() == "true"
+    backfill: bool = os.environ.get("BACKFILL", "false").lower() == "true"
 
     db_path = os.path.join(os.path.dirname(__file__), db_file)
     db_exists = os.path.exists(db_path)
@@ -35,7 +39,7 @@ def main():
         finally:
             session.close()
 
-    client = mail.authenticate(host, port, username, password)
+    client = mail.authenticate(imap_host, imap_port, imap_username, imap_password)
 
     try:
         if has_record:
@@ -62,6 +66,41 @@ def main():
 
         for email in emails:
             email.save()
+
+        if backfill:
+            for email in EMail.get_all():
+                events: list[Event] = event.parse_from_email(email)
+                for event_obj in events:
+                    event_obj.save()
+            logger.info("Backfilled events from all emails")
+        else:
+            most_recent_email = EMail.get_most_recent()
+            events: list[Event] = event.parse_from_email(most_recent_email)
+            for event_obj in events:
+                event_obj.save()
+            logger.info(
+                "Parsed and saved events from most recent email with date %s",
+                most_recent_email.delivery_date,
+            )
+
+        for email in emails:
+            content = text.to_plaintext(email.body)
+            print(content)
+            events = event.parse_schedule_text(content, email.delivery_date, email.id)
+            for event_obj in events:
+                print(event_obj)
+            input("Press Enter to continue...")
+        events = Event.get_all()
+
+        caldav_url = os.environ["CALDAV_URL"]
+        caldav_username = os.environ["CALDAV_USERNAME"]
+        caldav_password = os.environ["CALDAV_PASSWORD"]
+        calendar_name = os.environ["CALDAV_CALENDAR"]
+
+        add_to_caldav(
+            caldav_url, caldav_username, caldav_password, calendar_name, events
+        )
+
     except Exception as e:
         logger.error("An error occurred while retrieving emails: %s", e)
         raise e
