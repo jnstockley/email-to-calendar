@@ -473,6 +473,21 @@ def parse_schedule_text(
         if not pieces:
             pieces = [(title, start_time, end_time)]
 
+        # Clean piece summaries (remove leading artifacts like leftover digit/hyphen from time extraction)
+        cleaned_pieces = []
+        for ps, p_st, p_et in pieces:
+            if ps:
+                original_ps = ps
+                ps = ps.strip()
+                # Remove a leading leftover digit(s) plus hyphen (e.g., '5 - desc', '45 - desc')
+                ps = re.sub(r'^\d{1,4}\s*-\s*', '', ps)
+                # Remove leading isolated hyphen or colon punctuation
+                ps = re.sub(r'^[-–—:]+\s*', '', ps)
+                # Collapse multiple spaces
+                ps = re.sub(r'\s{2,}', ' ', ps).strip()
+            cleaned_pieces.append((ps, p_st, p_et))
+        pieces = cleaned_pieces
+
         try:
             event_date_start = date(current_year, current_month, last_day)
             event_date_end = None
