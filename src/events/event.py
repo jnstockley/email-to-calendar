@@ -335,6 +335,27 @@ def parse_schedule_text(
                 if tval:
                     start_time = tval
                     work = (work[: m_tok.start()] + " " + work[m_tok.end() :]).strip()
+        # Second standalone time => treat as end time (first token already consumed)
+        if start_time is not None and end_time is None:
+            m_second = _TIME_TOKEN_RE.search(work)
+            if m_second:
+                core2 = m_second.group(1)
+                suf2 = (m_second.group(2) or "").lower()
+                tval2 = _parse_time_token(core2 + suf2)
+                if tval2:
+                    # assign only if sensible; if earlier than start keep same (single-point)
+                    if tval2 >= start_time:
+                        end_time = tval2
+                    else:
+                        end_time = start_time
+                    # Remove second time plus any leading connector symbols (&, 'and', '-', 'to')
+                    pre = work[: m_second.start()]
+                    post = work[m_second.end() :]
+                    # Strip trailing connector artifacts from pre
+                    pre = re.sub(r"[\s,&;-]*(?:and|to)?\s*$", " ", pre, flags=re.IGNORECASE)
+                    work = (pre + post).strip()
+                    # Clean double spaces
+                    work = re.sub(r"\s{2,}", " ", work)
 
         title = work.strip()
         # Remove occurrences of 'or <day>' (valid day 1-31)
