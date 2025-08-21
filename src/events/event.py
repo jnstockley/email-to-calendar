@@ -45,6 +45,7 @@ _TIME_TOKEN_RE = re.compile(
 
 
 def _parse_time_token(tok: str) -> Optional[time]:
+    t_original = tok  # keep original for heuristics
     t = tok.lower().replace(";", ":")
     try:
         if re.fullmatch(r"\d{1,2}:\d{2}(?:am|pm)?", t):
@@ -57,6 +58,10 @@ def _parse_time_token(tok: str) -> Optional[time]:
                 if h == 12:
                     h = 0
                 if ampm == "pm":
+                    h += 12
+            else:
+                # No suffix provided: assume pm if hour 1-6 per new rule
+                if 1 <= h <= 6:
                     h += 12
             if 0 <= h < 24 and 0 <= m < 60:
                 return time(h, m)
@@ -82,6 +87,9 @@ def _parse_time_token(tok: str) -> Optional[time]:
             else:
                 h = int(t[:2])
                 m = int(t[2:])
+            # Infer pm if hour 1-6 and no suffix (ambiguous 12h style)
+            if 1 <= h <= 6:
+                h += 12
             if 0 <= h < 24 and 0 <= m < 60:
                 return time(h, m)
         elif re.fullmatch(r"\d{1,2}(am|pm)", t):
@@ -91,6 +99,15 @@ def _parse_time_token(tok: str) -> Optional[time]:
             if t.endswith("pm"):
                 h += 12
             return time(h, 0)
+        elif re.fullmatch(r"\d{1,2}", t):  # new: plain hour token
+            h = int(t)
+            if 0 <= h < 24:
+                # infer pm for 1-6 inclusive when ambiguous
+                if 1 <= h <= 6:
+                    h += 12
+                if h == 24:
+                    h = 0
+                return time(h, 0)
     except ValueError:
         return None
     return None
@@ -107,7 +124,7 @@ def parse_schedule_text(
     - Year headers override year.
     - A line may declare a day (optionally a day range). Subsequent lines without a day but with a time use last day.
     - Each line produces at most one event.
-    - A time range or single time may appear on the same line as the date; line without time becomes all-day (start=end=00:00 for tests).
+    - A time range or single time may appear on the same line as the date; line without time becomes an all-day event spanning 00:00 to 23:59 (or over the full day range if a day span was provided).
     - Lines lacking both date and time are ignored.
     """
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
@@ -167,7 +184,7 @@ def parse_schedule_text(
                     h2 = int(block[:2])
                     m2 = int(block[2:])
                 h1 = day_candidate  # treat same number as hour
-                assume_pm = (not suf) and (1 <= h1 <= 7)
+                assume_pm = (not suf) and (1 <= h1 <= 6)
 
                 def _to24(h: int) -> int:
                     if suf:
@@ -226,6 +243,11 @@ def parse_schedule_text(
         if last_day is None:
             continue
 
+        # If line started with a day and remainder begins with an alternative day option (e.g. 'or 20 ...'), drop it early
+        if day_in_line:
+            work_before_alt = work
+            work = re.sub(r"(?i)^or\s+\d{1,2}(?:st|nd|rd|th)?\b", "", work).strip()
+
         # Normalize approximate time forms (remove 'ish')
         work = re.sub(
             r"\b(\d{1,2}(?:[:;]?\d{2})?)\s?ish\b", r"\1", work, flags=re.IGNORECASE
@@ -254,6 +276,11 @@ def parse_schedule_text(
                     eh = 0
                 elif suf2 == "pm" and eh != 12:
                     eh += 12
+                if not suf1 and not suf2:  # both unspecified, apply pm inference rule
+                    if 1 <= sh <= 6:
+                        sh += 12
+                    if 1 <= eh <= 6:
+                        eh += 12
                 if all(0 <= v < 60 for v in (sm, em)) and 0 <= sh < 24 and 0 <= eh < 24:
                     start_time = time(sh, sm)
                     end_time = time(eh, em)
@@ -275,7 +302,7 @@ def parse_schedule_text(
                 else:
                     h2 = int(block[:2])
                     m2 = int(block[2:])
-                assume_pm = (not suf) and (1 <= h1 <= 7)
+                assume_pm = (not suf) and (1 <= h1 <= 6)
 
                 def _to24b(h: int) -> int:
                     if suf:
@@ -311,7 +338,7 @@ def parse_schedule_text(
 
         title = work.strip()
         # Remove occurrences of 'or <day>' (valid day 1-31)
-        if " or " in title.lower():
+        if re.search(r"(?i)\bor\s+\d{1,2}(?:st|nd|rd|th)?\b", title):
 
             def _drop_or_day(match: re.Match) -> str:
                 try:
@@ -375,6 +402,11 @@ def parse_schedule_text(
                         eh = 0
                     elif suf2 == "pm" and eh != 12:
                         eh += 12
+                    if not suf1 and not suf2:  # both unspecified, apply pm inference rule
+                        if 1 <= sh <= 6:
+                            sh += 12
+                        if 1 <= eh <= 6:
+                            eh += 12
                     if (
                         all(0 <= v < 60 for v in (sm, em))
                         and 0 <= sh < 24
@@ -395,7 +427,7 @@ def parse_schedule_text(
                         else:
                             h2 = int(block[:2])
                             m2 = int(block[2:])
-                        assume_pm = (not suf) and (1 <= h1 <= 7)
+                        assume_pm = (not suf) and (1 <= h1 <= 6)
 
                         def _to24c(h: int) -> int:
                             if suf:
@@ -455,11 +487,12 @@ def parse_schedule_text(
             if pst and pet and pet < pst and event_date_end is None:
                 pet = pst
             if pst is None:
+                # All-day event: span full day(s)
                 start_dt = datetime.combine(event_date_start, time(0, 0))
                 if event_date_end is not None:
-                    end_dt = datetime.combine(event_date_end, time(0, 0))
+                    end_dt = datetime.combine(event_date_end, time(23, 59))
                 else:
-                    end_dt = start_dt
+                    end_dt = datetime.combine(event_date_start, time(23, 59))
             else:
                 start_dt = datetime.combine(event_date_start, pst)
                 if effective_day_end is not None:
