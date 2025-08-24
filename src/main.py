@@ -1,14 +1,14 @@
 import os
+from typing import List
+
 from sqlalchemy import inspect
 
 from src import db_file, logger
-from src.events.caldav import add_to_caldav
-from src.model.event import Event
 from src.util import text
-from src.events import event
 from src.mail import mail
 from src.db import Base, engine, SessionLocal
 from src.model.email import EMail
+from src.util.text import ParsedEvent
 
 
 def main():
@@ -82,14 +82,6 @@ def main():
                 "Parsed and saved events from most recent email with date %s",
                 most_recent_email.delivery_date,
             )
-
-        for email in emails:
-            content = text.to_plaintext(email.body)
-            print(content)
-            events = event.parse_schedule_text(content, email.delivery_date, email.id)
-            for event_obj in events:
-                print(event_obj)
-            input("Press Enter to continue...")
         events = Event.get_all()
 
         caldav_url = os.environ["CALDAV_URL"]
@@ -106,6 +98,18 @@ def main():
         raise e
     finally:
         client.logout()
+
+    emails = EMail.get_all()
+    for email in emails:
+        content: List[ParsedEvent] = text.parse_email_events(email)
+        print("--------------------------------------------------------")
+        for event in content:
+            print(event)
+        print("--------------------------------------------------------")
+        #events = event.parse_schedule_text(content, email.delivery_date, email.id)
+        #for event_obj in events:
+        #    print(event_obj)
+        input("Press Enter to continue...")
 
 
 if __name__ == "__main__":

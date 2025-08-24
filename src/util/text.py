@@ -1,119 +1,479 @@
-"""Utilities for working with event-related textual content.
-
-Currently exposes a single helper to turn Markdown or simple HTML into
-raw plain text while preserving the original newline structure as much
-as is practical.
-"""
-
-from __future__ import annotations
-
-from html import unescape
 import re
+from datetime import datetime, date, time
+from typing import List, Optional, Tuple
+from dataclasses import dataclass
 
-__all__ = ["to_plaintext"]
+from bs4 import BeautifulSoup
 
-# Precompiled regular expressions (compiled once for efficiency)
-_RE_HTML_TAG = re.compile(r"<[^>]+>")
-_RE_HTML_DETECT = re.compile(r"<[A-Za-z/!][^>]*>")
-# Fenced code blocks: remove the opening (with optional lang) and closing fences separately
-_RE_FENCED_OPEN = re.compile(r"```[A-Za-z0-9_-]*\n?")
-_RE_FENCED_CLOSE = re.compile(r"```")
-_RE_INLINE_CODE = re.compile(r"`([^`]+)`")
-_RE_IMAGE = re.compile(r"!\[([^\]]*)]\([^)]*\)")
-_RE_LINK_INLINE = re.compile(r"\[([^\]]+)]\([^)]*\)")
-_RE_LINK_REFERENCE = re.compile(r"\[([^\]]+)]\[[^\]]*]")
-_RE_LINK_DEFINITION = re.compile(r"^\s*\[[^\]]+]:\s+\S+.*$", re.MULTILINE)
-_RE_BOLD = re.compile(r"(\*\*|__)(.*?)\1")
-_RE_ITALIC = re.compile(r"(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)|(?<!_)_([^_]+?)_(?!_)")
-_RE_STRIKE = re.compile(r"~~(.*?)~~")
-_RE_HEADING = re.compile(r"^ {0,3}#{1,6}\s+", re.MULTILINE)
-_RE_BLOCKQUOTE = re.compile(r"^ {0,3}> ?", re.MULTILINE)
-_RE_ULIST = re.compile(r"^ {0,3}[-*+]\s+", re.MULTILINE)
-_RE_OLIST = re.compile(r"^ {0,3}\d+\.\s+", re.MULTILINE)
-_RE_HRULE = re.compile(r"^ {0,3}([-_*])(?:\s*\1){2,}\s*$", re.MULTILINE)
-_RE_TRAILING_WS = re.compile(r"[ \t]+$", re.MULTILINE)
-_RE_MULTI_BLANKS = re.compile(r"\n{3,}")
-
-# Block-level tags that should logically introduce a line break boundary
-_BLOCK_LEVEL_TAGS = {
-    "p",
-    "div",
-    "section",
-    "article",
-    "header",
-    "footer",
-    "aside",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "ul",
-    "ol",
-    "li",
-    "pre",
-    "code",
-    "blockquote",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "th",
-    "td",
-}
-_BLOCK_TAGS_PATTERN = "|".join(sorted(_BLOCK_LEVEL_TAGS))
-
-_BR_TAG_PATTERN = re.compile(r"<br\s*/?>", re.IGNORECASE)
-_END_BLOCK_PATTERN = re.compile(rf"</(?:({_BLOCK_TAGS_PATTERN}))>", re.IGNORECASE)
-_START_BLOCK_PATTERN = re.compile(
-    rf"<(?:({_BLOCK_TAGS_PATTERN})(?:\s[^>]*)?)>", re.IGNORECASE
-)
+from src.model.email import EMail
+from src.model.event import Event
 
 
-def _html_to_text(s: str) -> str:
-    """Very lightweight HTML-to-text conversion (no external deps)."""
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    s = _BR_TAG_PATTERN.sub("\n", s)
-    s = _START_BLOCK_PATTERN.sub(lambda m: f"\n{m.group(0)}", s)
-    s = _END_BLOCK_PATTERN.sub(lambda m: f"{m.group(0)}\n", s)
-    s = _RE_HTML_TAG.sub("", s)
-    s = unescape(s)
-    return s
+@dataclass
+class ParsedEvent:
+    """Represents a parsed calendar event"""
+    start_date: date
+    email: EMail
+    end_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    summary: str = ""
+    is_all_day: bool = True
+    is_tentative: bool = False  # True if date contains "or"
+
+    def __str__(self):
+        date_str = self.start_date.strftime("%Y-%m-%d")
+        if self.end_date:
+            date_str += f" to {self.end_date.strftime('%Y-%m-%d')}"
+        time_str = "All day" if self.is_all_day else (self.start_time.strftime("%H:%M") if self.start_time else "N/A")
+        if self.end_time:
+            time_str += f" to {self.end_time.strftime('%H:%M')}"
+        tentative_str = " (Tentative)" if self.is_tentative else ""
+        return f"{date_str} {time_str} - {self.summary}{tentative_str}"
+
+    def to_event(self):
+        """Convert ParsedEvent to Event model instance"""
+        start_datetime = datetime.combine(self.start_date, self.start_time or time(0, 0))
+        end_datetime = None
+        if self.end_date:
+            end_datetime = datetime.combine(self.end_date, self.end_time or time(23, 59))
+        elif self.end_time:
+            end_datetime = datetime.combine(self.start_date, self.end_time)
+        else:
+            end_datetime = start_datetime
+
+        return Event(
+            start=start_datetime,
+            end=end_datetime,
+            summary=self.summary,
+            email_id=self.email.id,
+            in_calendar=False
+        )
 
 
-def _strip_markdown(s: str) -> str:
-    """Strip common Markdown formatting while preserving line breaks."""
-    s = _RE_FENCED_OPEN.sub("", s)
-    s = _RE_FENCED_CLOSE.sub("", s)
-    s = _RE_INLINE_CODE.sub(lambda m: m.group(1), s)
-    s = _RE_IMAGE.sub(lambda m: m.group(1), s)
-    s = _RE_LINK_INLINE.sub(lambda m: m.group(1), s)
-    s = _RE_LINK_REFERENCE.sub(lambda m: m.group(1), s)
-    s = _RE_LINK_DEFINITION.sub("", s)
-    s = _RE_BOLD.sub(lambda m: m.group(2), s)
+class EmailEventParser:
+    """Parser for extracting calendar events from email bodies"""
 
-    def _italic_repl(m: re.Match) -> str:  # type: ignore[override]
-        return (m.group(1) or m.group(2) or "") if m else ""
+    # Month names mapping
+    MONTHS = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    }
 
-    s = _RE_ITALIC.sub(_italic_repl, s)
-    s = _RE_STRIKE.sub(lambda m: m.group(1), s)
-    s = _RE_HEADING.sub("", s)
-    s = _RE_BLOCKQUOTE.sub("", s)
-    s = _RE_ULIST.sub("", s)
-    s = _RE_OLIST.sub("", s)
-    s = _RE_HRULE.sub("", s)
-    return s
+    def __init__(self, delivery_date: datetime):
+        """
+        Initialize parser with email delivery date
+
+        Args:
+            delivery_date: The date the email was delivered (used as default year)
+        """
+        self.delivery_date = delivery_date
+        self.current_year = delivery_date.year
+        self.current_month = None
+
+    def clean_html_content(self, html_content: str) -> str:
+        """
+        Clean HTML content and convert to plain text
+
+        Args:
+            html_content: Raw HTML content from email
+
+        Returns:
+            Cleaned plain text content
+        """
+        # Parse HTML
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+
+        # Add line breaks before certain elements to preserve structure
+        for tag in soup.find_all(['div', 'br', 'p']):
+            if tag.name == 'br':
+                tag.replace_with('\n')
+            else:
+                # Add newlines around block elements
+                tag.insert(0, '\n')
+                tag.append('\n')
+
+        # Get text content
+        text = soup.get_text()
+
+        # Clean up whitespace and line breaks
+        lines = []
+        for line in text.split('\n'):
+            line = line.strip()
+            if line:
+                lines.append(line)
+
+        return '\n'.join(lines)
+
+    def parse_time(self, time_str: str) -> Optional[time]:
+        """
+        Parse time string into time object
+
+        Args:
+            time_str: Time string (e.g., "2pm", "10:30am", "830", "2:15", "noon")
+
+        Returns:
+            Parsed time object or None if parsing fails
+        """
+        if not time_str:
+            return None
+
+        time_str = time_str.strip().lower()
+
+        # Handle special cases
+        if time_str == 'noon':
+            return time(12, 0)
+        elif time_str == 'midnight':
+            return time(0, 0)
+
+        # Handle various time formats
+        time_patterns = [
+            r'^(\d{1,2}):(\d{2})\s*(am|pm)?$',  # 2:30pm, 10:15
+            r'^(\d{1,2})\s*(am|pm)$',          # 2pm, 10am
+            r'^(\d{3,4})\s*(am|pm)$',          # 830am, 1020am (WITH am/pm required)
+            r'^(\d{3,4})ish$',                 # 830ish, 1020ish
+            r'^(\d{3,4})$',                    # 830, 1020 (without am/pm)
+            r'^(\d{1,2})$',                    # 14 (assume 24-hour if >12, otherwise needs context)
+        ]
+
+        for pattern in time_patterns:
+            match = re.match(pattern, time_str)
+            if match:
+                groups = match.groups()
+
+                if len(groups) >= 2 and ':' in time_str:  # HH:MM format
+                    hour, minute = int(groups[0]), int(groups[1])
+                    ampm = groups[2] if len(groups) > 2 else None
+
+                    # Smart AM/PM inference for times without explicit am/pm
+                    if not ampm:
+                        # Common appointment/event time patterns
+                        if hour >= 1 and hour <= 5:  # 1:30, 2:50, 4:10 likely PM
+                            hour += 12
+                        elif hour == 12:  # 12:XX likely PM (noon hour)
+                            pass  # Keep as is
+                        # Hours 6-11 and 13+ stay as is (morning or 24-hour format)
+
+                elif len(groups) >= 2 and groups[1] and groups[1] in ['am', 'pm']:  # H am/pm format (including HHMM am/pm)
+                    hour_or_time_digits = groups[0]
+                    ampm = groups[1]
+
+                    # Check if it's a 3-4 digit time like 830am or 1020am
+                    if len(hour_or_time_digits) >= 3:  # HHMM format with am/pm
+                        if len(hour_or_time_digits) == 3:  # 830 = 8:30
+                            hour, minute = int(hour_or_time_digits[0]), int(hour_or_time_digits[1:])
+                        else:  # 1020 = 10:20
+                            hour, minute = int(hour_or_time_digits[:2]), int(hour_or_time_digits[2:])
+                    else:  # Single or double digit hour
+                        hour, minute = int(hour_or_time_digits), 0
+
+                elif 'ish' in time_str:  # HHMMish format
+                    time_digits = groups[0]
+                    if len(time_digits) == 3:  # 830 = 8:30
+                        hour, minute = int(time_digits[0]), int(time_digits[1:])
+                    elif len(time_digits) == 4:  # 1020 = 10:20
+                        hour, minute = int(time_digits[:2]), int(time_digits[2:])
+                    else:
+                        continue
+
+                    # For "ish" times, assume reasonable defaults based on hour
+                    if 6 <= hour <= 11:  # Morning hours
+                        ampm = 'am'
+                    elif 1 <= hour <= 5:  # Afternoon hours
+                        ampm = 'pm'
+                    else:
+                        ampm = None  # For 12 and hours >= 13, leave as is
+
+                elif len(groups[0]) >= 3:  # HHMM format without am/pm
+                    time_digits = groups[0]
+                    if len(time_digits) == 3:  # 830 = 8:30
+                        hour, minute = int(time_digits[0]), int(time_digits[1:])
+                    elif len(time_digits) == 4:  # 1020 = 10:20
+                        hour, minute = int(time_digits[:2]), int(time_digits[2:])
+                    else:
+                        continue
+                    ampm = None
+                else:  # Single digit hour
+                    hour, minute = int(groups[0]), 0
+                    ampm = None
+                    # If no am/pm and hour <= 12, assume it needs am/pm context
+                    if hour <= 12:
+                        # For common appointment times, assume PM if reasonable
+                        if 1 <= hour <= 5:
+                            ampm = 'pm'
+                        elif hour >= 6:
+                            ampm = 'am'
+
+                # Handle AM/PM (only if not already processed above)
+                if ampm == 'pm' and hour != 12:
+                    hour += 12
+                elif ampm == 'am' and hour == 12:
+                    hour = 0
+
+                # Validate hour and minute
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    return time(hour, minute)
+
+        return None
+
+    def parse_date_range(self, date_str: str, month: int, year: int) -> Tuple[Optional[date], Optional[date]]:
+        """
+        Parse date or date range string
+
+        Args:
+            date_str: Date string (e.g., "15", "22-23", "8-11", "21st", "22nd-24th")
+            month: Current month number
+            year: Current year
+
+        Returns:
+            Tuple of (start_date, end_date). end_date is None for single dates
+        """
+        date_str = date_str.strip()
+
+        # Remove ordinal suffixes (st, nd, rd, th)
+        def clean_ordinal(day_str: str) -> str:
+            """Remove ordinal suffixes from day string"""
+            day_str = day_str.strip()
+            # Match ordinal suffixes: 1st, 2nd, 3rd, 4th, 11th, 21st, etc.
+            ordinal_pattern = r'^(\d+)(?:st|nd|rd|th)$'
+            match = re.match(ordinal_pattern, day_str, re.IGNORECASE)
+            if match:
+                return match.group(1)
+            return day_str
+
+        # Handle date ranges (e.g., "22-23", "8-11", "21st-23rd", "1st-3rd")
+        if '-' in date_str:
+            parts = date_str.split('-')
+            if len(parts) == 2:
+                try:
+                    start_day = int(clean_ordinal(parts[0]))
+                    end_day = int(clean_ordinal(parts[1]))
+                    start_date = date(year, month, start_day)
+                    end_date = date(year, month, end_day)
+                    return start_date, end_date
+                except (ValueError, TypeError):
+                    pass
+
+        # Single date (e.g., "15", "21st", "22nd")
+        try:
+            day = int(clean_ordinal(date_str))
+            return date(year, month, day), None
+        except (ValueError, TypeError):
+            pass
+
+        return None, None
+
+    def parse_event_line(self, line: str, current_month: int, current_year: int, last_event_date: Optional[date] = None) -> List[ParsedEvent]:
+        """
+        Parse a single line that may contain one or more events
+
+        Args:
+            line: Line of text containing event information
+            current_month: Current month number
+            current_year: Current year
+            last_event_date: Date from the previous event (used when line doesn't start with a date)
+
+        Returns:
+            List of parsed events
+        """
+        events = []
+        line = line.strip()
+
+        if not line:
+            return events
+
+        # Check for tentative events (containing "or")
+        is_tentative = ' or ' in line.lower()
+
+        # Split on & and "and" for multiple events on same line
+        event_parts = re.split(r'\s*&\s*|\s+and\s+', line, flags=re.IGNORECASE)
+
+        for event_part in event_parts:
+            event_part = event_part.strip()
+            if not event_part:
+                continue
+
+            # Look for date patterns at the start (including ordinal suffixes)
+            date_time_pattern = r'^(\d+(?:st|nd|rd|th)?(?:-\d+(?:st|nd|rd|th)?)?(?:\s+or\s+\d+(?:st|nd|rd|th)?(?:-\d+(?:st|nd|rd|th)?)?)*)\s*(.*)$'
+            match = re.match(date_time_pattern, event_part, re.IGNORECASE)
+
+            start_date = None
+            end_date = None
+            rest = event_part
+
+            if match:
+                # Event starts with a date
+                date_part, rest = match.groups()
+
+                # Handle tentative dates with "or"
+                if ' or ' in date_part.lower():
+                    date_options = re.split(r'\s+or\s+', date_part, flags=re.IGNORECASE)
+                    date_part = date_options[0]  # Use first option for now
+                    is_tentative = True
+
+                # Parse the date range
+                start_date, end_date = self.parse_date_range(date_part, current_month, current_year)
+            else:
+                # Event doesn't start with a date, use last event's date if available
+                if last_event_date:
+                    start_date = last_event_date
+                    # rest is the entire event_part since there's no date to strip
+                    rest = event_part
+                else:
+                    # No date found and no previous date to use, skip this event part
+                    continue
+
+            if not start_date:
+                continue
+
+            # Extract times from anywhere in the rest of the text
+            start_time = None
+            end_time = None
+            summary = rest.strip()
+
+            # Look for time patterns throughout the text
+            time_patterns = [
+                r'\b(\d{1,2}):(\d{2})\s*(am|pm)\b',     # 2:30pm, 10:15am
+                r'\b(\d{1,2})\s*(am|pm)\b',             # 2pm, 10am
+                r'\b(\d{1,2}):(\d{2})\b',               # 2:30, 14:15 (without am/pm)
+                r'\b(\d{3,4})\s*(am|pm)\b',             # 830am, 1015am, 1020am (WITH am/pm)
+                r'\b(\d{3,4})\b(?!\s*(?:am|pm|ish))',   # 830, 1015 (without am/pm, not followed by am/pm/ish)
+                r'\b(\d{3,4})ish\b',                    # 830ish, 1020ish
+                r'\b(noon|midnight)\b',                  # noon, midnight
+            ]
+
+            found_times = []
+            for pattern in time_patterns:
+                matches = re.finditer(pattern, rest, re.IGNORECASE)
+                for match in matches:
+                    time_str = match.group(0)
+                    parsed_time = self.parse_time(time_str)
+                    if parsed_time:
+                        found_times.append((parsed_time, match.span()))
+
+            # Remove time strings from summary and assign start/end times
+            if found_times:
+                # Sort by position in text
+                found_times.sort(key=lambda x: x[1][0])
+
+                # Take first time as start time
+                start_time = found_times[0][0]
+
+                # If there are two times, second one is end time
+                if len(found_times) >= 2:
+                    end_time = found_times[1][0]
+
+                # Remove time strings from summary (in reverse order to preserve positions)
+                spans_to_remove = [t[1] for t in found_times]
+                for span in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
+                    summary = summary[:span[0]] + summary[span[1]:]
+
+                # Clean up extra spaces in summary
+                summary = re.sub(r'\s+', ' ', summary).strip()
+
+            # Determine if it's an all-day event
+            is_all_day = start_time is None and end_time is None
+
+            # Create the event
+            event = ParsedEvent(
+                start_date=start_date,
+                end_date=end_date,
+                start_time=start_time,
+                end_time=end_time,
+                summary=summary,
+                is_all_day=is_all_day,
+                is_tentative=is_tentative
+            )
+
+            events.append(event)
+
+        return events
+
+    def parse_email_body(self, email_body: str) -> List[ParsedEvent]:
+        """
+        Parse email body and extract all calendar events
+
+        Args:
+            email_body: Raw email body (HTML or plain text)
+
+        Returns:
+            List of parsed calendar events
+        """
+        # Clean HTML content
+        if '<' in email_body and '>' in email_body:
+            text_content = self.clean_html_content(email_body)
+        else:
+            text_content = email_body
+
+        lines = text_content.split('\n')
+        events = []
+        current_year = self.current_year
+        current_month = None
+        last_event_date = None  # Track the last parsed date
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Check for year
+            year_match = re.match(r'^\s*(\d{4})\s*$', line)
+            if year_match:
+                current_year = int(year_match.group(1))
+                continue
+
+            # Check for month
+            month_match = re.match(r'^\s*(\w+)\s*$', line, re.IGNORECASE)
+            if month_match:
+                month_name = month_match.group(1).lower()
+                if month_name in self.MONTHS:
+                    new_month = self.MONTHS[month_name]
+
+                    # Handle year increment when months loop (Dec -> Jan)
+                    if current_month and new_month < current_month:
+                        # Only increment year if we go from a late month to early month
+                        if current_month >= 10 and new_month <= 3:  # Oct/Nov/Dec -> Jan/Feb/Mar
+                            current_year += 1
+
+                    current_month = new_month
+                    continue
+
+            # Parse event line if we have a current month
+            if current_month:
+                line_events = self.parse_event_line(line, current_month, current_year, last_event_date)
+                events.extend(line_events)
+
+                # Update last_event_date with the last parsed event's date
+                if line_events:
+                    last_event_date = line_events[-1].start_date
+
+        return events
 
 
-def to_plaintext(text: str | None) -> str:
-    """Return the unformatted plain text contents of Markdown or HTML."""
-    if not text:
-        return ""
-    s = text.replace("\r\n", "\n").replace("\r", "\n")
-    if _RE_HTML_DETECT.search(s):
-        s = _html_to_text(s)
-    s = _strip_markdown(s)
-    s = _RE_TRAILING_WS.sub("", s)
-    s = _RE_MULTI_BLANKS.sub("\n\n", s)
-    return s.strip()
+def parse_email_events(email: EMail) -> List[ParsedEvent]:
+    """
+    Convenience function to parse email events
+
+    Args:
+        email: EMail object containing body and delivery_date
+
+    Returns:
+        List of parsed calendar events
+    """
+    parser = EmailEventParser(email.delivery_date)
+    return parser.parse_email_body(email.body)
+

@@ -126,23 +126,129 @@ def parse_schedule_text(
     - Each line produces at most one event.
     - A time range or single time may appear on the same line as the date; line without time becomes an all-day event spanning 00:00 to 23:59 (or over the full day range if a day span was provided).
     - Lines lacking both date and time are ignored.
+    - Enhancement: If a date/time line has no summary text, consume subsequent blank/whitespace-only lines until a non-blank. If that next non-blank line does NOT start a new date/time section, use it as the summary. If it does start a new date/time (or end of input), previous event becomes 'Untitled'.
     """
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    # Keep original line ordering including blanks for deferred title resolution
+    raw_lines = text.splitlines()
+
     events: List[Event] = []
     current_year = delivery_date.year
     saw_explicit_year = False
     current_month: Optional[int] = None
     last_day: Optional[int] = None
 
-    for raw in lines:
+    # State for a pending event awaiting a title line
+    pending_event = None  # dict with stored data
+
+    def _is_month(line: str) -> bool:
+        return bool(_MONTH_RE.match(line))
+
+    def _is_year(line: str) -> bool:
+        return bool(_YEAR_RE.match(line))
+
+    def _starts_day_prefix(line: str) -> bool:
+        return bool(_DAY_PREFIX_RE.match(line))
+
+    def _contains_time_tokens(line: str) -> bool:
+        return bool(_TIME_RANGE_RE.search(line) or _TIME_TOKEN_RE.search(line))
+
+    def _starts_new_event_line(line: str) -> bool:
+        ls = line.strip()
+        if not ls:
+            return False
+        if _is_year(ls) or _is_month(ls) or _starts_day_prefix(ls):
+            return True
+        # Time-only line with existing last_day counts as new event
+        if last_day is not None and _contains_time_tokens(ls):
+            return True
+        return False
+
+    def _finalize_pending(force_untitled: bool = False):
+        nonlocal pending_event
+        if not pending_event:
+            return
+        title = pending_event["title"]
+        if (not title) or force_untitled:
+            title = "Untitled"
+        _emit_event(title, pending_event)
+        pending_event = None
+
+    def _emit_event(title: str, ctx: dict):
+        """Replicate event piece splitting & creation logic for a single pending context."""
+        nonlocal events
+        start_time_ctx = ctx.get("start_time")
+        end_time_ctx = ctx.get("end_time")
+        effective_day_end = ctx.get("effective_day_end")
+        event_date_start = ctx["event_date_start"]
+        event_date_end = ctx.get("event_date_end")
+
+        pieces = [(title.strip(), start_time_ctx, end_time_ctx)]
+        cleaned_pieces = []
+        for ps, p_st, p_et in pieces:
+            if ps:
+                ps = ps.strip()
+                ps = re.sub(r'^\d{1,4}\s*-\s*', '', ps)
+                ps = re.sub(r'^[-–—:]+\s*', '', ps)
+                ps = re.sub(r'\s{2,}', ' ', ps).strip()
+            cleaned_pieces.append((ps, p_st, p_et))
+        pieces = cleaned_pieces
+
+        for piece_summary, p_start_time, p_end_time in pieces:
+            pst = p_start_time
+            pet = p_end_time
+            if pst and pet and pet < pst and event_date_end is None:
+                pet = pst
+            if pst is None:
+                start_dt = datetime.combine(event_date_start, time(0, 0))
+                if event_date_end is not None:
+                    end_dt = datetime.combine(event_date_end, time(23, 59))
+                else:
+                    end_dt = datetime.combine(event_date_start, time(23, 59))
+            else:
+                start_dt = datetime.combine(event_date_start, pst)
+                if effective_day_end is not None and event_date_end is not None:
+                    if pet is None:
+                        end_dt = datetime.combine(event_date_end, pst)  # type: ignore[arg-type]
+                    else:
+                        end_dt = datetime.combine(event_date_end, pet)  # type: ignore[arg-type]
+                else:
+                    end_dt = datetime.combine(event_date_start, pet or pst)
+            kwargs = {
+                "summary": piece_summary or "Untitled",
+                "start": start_dt,
+                "end": end_dt,
+            }
+            if email_id is not None:
+                kwargs["email_id"] = email_id
+            try:
+                events.append(Event(**kwargs))
+            except Exception:
+                continue
+
+    for idx, raw in enumerate(raw_lines):
+        line = raw.strip()
+
+        # If we have a pending event awaiting title:
+        if pending_event:
+            if not line:  # skip blank lines until something substantive
+                continue
+            if _starts_new_event_line(line):
+                # finalize previous as Untitled, then continue processing this line as new
+                _finalize_pending(force_untitled=True)
+            else:
+                # Use this line as the title of pending event
+                pending_event["title"] = line
+                _finalize_pending()
+                continue  # title line consumed; move to next
+
         # Year header
-        m_year = _YEAR_RE.match(raw)
+        m_year = _YEAR_RE.match(line)
         if m_year:
             current_year = int(m_year.group(1))
             saw_explicit_year = True
             continue
         # Month header
-        m_month = _MONTH_RE.match(raw)
+        m_month = _MONTH_RE.match(line)
         if m_month:
             name = m_month.group(1).lower()
             if name in _MONTHS:
@@ -157,8 +263,10 @@ def parse_schedule_text(
             continue
         if current_month is None:
             continue
+        if not line:
+            continue
 
-        work = raw
+        work = line
         day_in_line = False
         effective_day_end: Optional[int] = None
         start_time: Optional[time] = None
@@ -245,7 +353,6 @@ def parse_schedule_text(
 
         # If line started with a day and remainder begins with an alternative day option (e.g. 'or 20 ...'), drop it early
         if day_in_line:
-            work_before_alt = work
             work = re.sub(r"(?i)^or\s+\d{1,2}(?:st|nd|rd|th)?\b", "", work).strip()
 
         # Normalize approximate time forms (remove 'ish')
@@ -343,22 +450,17 @@ def parse_schedule_text(
                 suf2 = (m_second.group(2) or "").lower()
                 tval2 = _parse_time_token(core2 + suf2)
                 if tval2:
-                    # assign only if sensible; if earlier than start keep same (single-point)
                     if tval2 >= start_time:
                         end_time = tval2
                     else:
                         end_time = start_time
-                    # Remove second time plus any leading connector symbols (&, 'and', '-', 'to')
                     pre = work[: m_second.start()]
                     post = work[m_second.end() :]
-                    # Strip trailing connector artifacts from pre
                     pre = re.sub(r"[\s,&;-]*(?:and|to)?\s*$", " ", pre, flags=re.IGNORECASE)
                     work = (pre + post).strip()
-                    # Clean double spaces
                     work = re.sub(r"\s{2,}", " ", work)
 
         title = work.strip()
-        # Remove occurrences of 'or <day>' (valid day 1-31)
         if re.search(r"(?i)\bor\s+\d{1,2}(?:st|nd|rd|th)?\b", title):
 
             def _drop_or_day(match: re.Match) -> str:
@@ -375,13 +477,31 @@ def parse_schedule_text(
             )
             title = re.sub(r"\s{2,}", " ", title).strip()
         if day_in_line and not start_time and not title:
+            # pure date line with no time & no summary => will be ignored (no event)
             continue
+
         if not title and (day_in_line or start_time):
-            title = "Untitled"
+            # Defer creation; store pending awaiting a title from subsequent lines
+            try:
+                event_date_start = date(current_year, current_month, last_day)
+                event_date_end = None
+                if effective_day_end is not None:
+                    event_date_end = date(current_year, current_month, effective_day_end)
+            except ValueError:
+                continue
+            pending_event = {
+                "title": "",  # unresolved
+                "start_time": start_time,
+                "end_time": end_time,
+                "effective_day_end": effective_day_end,
+                "event_date_start": event_date_start,
+                "event_date_end": event_date_end,
+            }
+            continue
         if not title:
             continue
 
-        # Multi-event splitting: look for 'and' or '&' followed by time/time range
+        # Normal immediate event path
         pieces = []  # (summary, start_time, end_time)
         if (" and " in title.lower() or " & " in title) and (
             start_time is not None or end_time is not None or True
@@ -397,7 +517,6 @@ def parse_schedule_text(
                 after = title[m_sep.end() :].lstrip()
                 if not after:
                     continue
-                # Try range first
                 m_after_range = _TIME_RANGE_RE.match(after)
                 m_after_compact = None
                 m_after_time = None
@@ -423,7 +542,7 @@ def parse_schedule_text(
                         eh = 0
                     elif suf2 == "pm" and eh != 12:
                         eh += 12
-                    if not suf1 and not suf2:  # both unspecified, apply pm inference rule
+                    if not suf1 and not suf2:
                         if 1 <= sh <= 6:
                             sh += 12
                         if 1 <= eh <= 6:
@@ -477,7 +596,6 @@ def parse_schedule_text(
                             n_end = None
                             consumed = m_after_time.end()
                 if n_start is not None:
-                    # finalize previous summary
                     prev_summary = title[last_index : m_sep.start()].strip()
                     if prev_summary:
                         pieces.append((prev_summary, cur_start, cur_end))
@@ -494,17 +612,12 @@ def parse_schedule_text(
         if not pieces:
             pieces = [(title, start_time, end_time)]
 
-        # Clean piece summaries (remove leading artifacts like leftover digit/hyphen from time extraction)
         cleaned_pieces = []
         for ps, p_st, p_et in pieces:
             if ps:
-                original_ps = ps
                 ps = ps.strip()
-                # Remove a leading leftover digit(s) plus hyphen (e.g., '5 - desc', '45 - desc')
                 ps = re.sub(r'^\d{1,4}\s*-\s*', '', ps)
-                # Remove leading isolated hyphen or colon punctuation
                 ps = re.sub(r'^[-–—:]+\s*', '', ps)
-                # Collapse multiple spaces
                 ps = re.sub(r'\s{2,}', ' ', ps).strip()
             cleaned_pieces.append((ps, p_st, p_et))
         pieces = cleaned_pieces
@@ -523,7 +636,6 @@ def parse_schedule_text(
             if pst and pet and pet < pst and event_date_end is None:
                 pet = pst
             if pst is None:
-                # All-day event: span full day(s)
                 start_dt = datetime.combine(event_date_start, time(0, 0))
                 if event_date_end is not None:
                     end_dt = datetime.combine(event_date_end, time(23, 59))
@@ -550,5 +662,9 @@ def parse_schedule_text(
             except Exception:
                 continue
         continue
+
+    # Finalize any leftover pending event at end of input
+    if pending_event:
+        _finalize_pending(force_untitled=True)
 
     return events
