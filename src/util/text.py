@@ -77,13 +77,13 @@ class ParsedEvent:
 
     def strip_formatting(self, text: str) -> str:
         """
-        Remove markdown and HTML formatting from text
+        Remove markdown, HTML formatting and unwanted special characters from text
 
         Args:
-            text: Text that may contain markdown or HTML formatting
+            text: Text that may contain markdown, HTML formatting, or special characters
 
         Returns:
-            Clean text without formatting
+            Clean text without formatting or unwanted characters
         """
         if not text:
             return text
@@ -100,8 +100,11 @@ class ParsedEvent:
             soup = BeautifulSoup(text, "html.parser")
             text = soup.get_text()
 
-        # Clean up extra whitespace
-        text = re.sub(r"\s+", " ", text).strip()
+        # Remove unwanted special characters from summaries
+        # Keep only letters, numbers, spaces, and basic punctuation (periods, commas, apostrophes, parentheses)
+        # Remove problematic characters like colons, dashes, etc. that clutter summaries
+        text = re.sub(r'[><!@#$%^&*_+=\[\]{}\\|;:"\'`~-]', ' ', text).strip()
+
 
         return text
 
