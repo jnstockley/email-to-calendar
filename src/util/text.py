@@ -44,6 +44,11 @@ class ParsedEvent:
             if self.end_date:
                 # Multi-day all-day event: end at 23:59:59 of the end date
                 end_datetime = datetime.combine(self.end_date, time(23, 59, 59))
+
+                # Validate that end date is after start date
+                if end_datetime <= start_datetime:
+                    # If end date is before or equal to start date, assume single day event
+                    end_datetime = datetime.combine(self.start_date, time(23, 59, 59))
             else:
                 # Single-day all-day event: end at 23:59:59 of the same day
                 end_datetime = datetime.combine(self.start_date, time(23, 59, 59))
@@ -54,12 +59,43 @@ class ParsedEvent:
             if self.end_date and self.end_time:
                 # Multi-day event with specific end time
                 end_datetime = datetime.combine(self.end_date, self.end_time)
+
+                # Validate that end datetime is after start datetime
+                if end_datetime <= start_datetime:
+                    # If end is before start, assume single day event with 1 hour duration
+                    end_datetime = start_datetime + timedelta(hours=1)
             elif self.end_date:
                 # Multi-day event without specific end time - assume it ends at end of end date
-                end_datetime = datetime.combine(self.end_date, time(23, 59, 59))
+                proposed_end = datetime.combine(self.end_date, time(23, 59, 59))
+
+                # Validate that end date is after start date
+                if proposed_end <= start_datetime:
+                    # If end date is before start, assume single day event
+                    end_datetime = datetime.combine(self.start_date, time(23, 59, 59))
+                else:
+                    end_datetime = proposed_end
             elif self.end_time:
                 # Same-day event with specific end time
                 end_datetime = datetime.combine(self.start_date, self.end_time)
+
+                # Validate that end time is after start time for same-day events
+                if end_datetime <= start_datetime:
+                    # If end time is before or equal to start time, try to fix it
+                    # This commonly happens with AM/PM parsing issues
+
+                    # If both times are in the same half of the day, add 12 hours to end time
+                    if (self.start_time.hour < 12 and self.end_time.hour < 12) or \
+                       (self.start_time.hour >= 12 and self.end_time.hour >= 12):
+                        # Both are AM or both are PM, likely one should be PM when other is AM
+                        if self.end_time.hour < 12:
+                            # End time is AM, make it PM
+                            fixed_end_time = time(self.end_time.hour + 12, self.end_time.minute)
+                            end_datetime = datetime.combine(self.start_date, fixed_end_time)
+
+                    # If it's still not fixed, just add some reasonable duration
+                    if end_datetime <= start_datetime:
+                        # Add 1 hour as default duration
+                        end_datetime = start_datetime + timedelta(hours=1)
             else:
                 # Same-day event with only start time - assume 1 hour duration
                 end_datetime = start_datetime + timedelta(hours=1)
@@ -201,11 +237,11 @@ class EmailEventParser:
         # Add line breaks before certain elements to preserve structure
         for tag in soup.find_all(["div", "br", "p"]):
             if tag.name == "br":
-                tag.replace_with("\n")
+                tag.replace_with(soup.new_string("\n"))
             else:
                 # Add newlines around block elements
-                tag.insert(0, "\n")
-                tag.append("\n")
+                tag.insert_before(soup.new_string("\n"))
+                tag.insert_after(soup.new_string("\n"))
 
         # Get text content
         text = soup.get_text()
@@ -393,47 +429,30 @@ class EmailEventParser:
             else:  # Single or double digit - treat as hour
                 end_time = self.parse_time(end_str)
 
+            # Additional validation: ensure end time is after start time
+            if end_time and start_time:
+                # Convert to minutes for easy comparison
+                start_minutes = start_time.hour * 60 + start_time.minute
+                end_minutes = end_time.hour * 60 + end_time.minute
+
+                # If end time is before or equal to start time, try to fix it
+                if end_minutes <= start_minutes:
+                    # Try adding 12 hours to end time if it's in AM and start is in PM
+                    if end_time.hour < 12 and start_time.hour >= 12:
+                        fixed_end_time = time(end_time.hour + 12, end_time.minute)
+                        return start_time, fixed_end_time
+                    # Try adding 12 hours to end time if both are in AM but end should be PM
+                    elif end_time.hour < 12 and start_time.hour < 12:
+                        fixed_end_time = time(end_time.hour + 12, end_time.minute)
+                        return start_time, fixed_end_time
+                    # If still problematic, return None for end_time (will default to 1 hour duration)
+                    else:
+                        return start_time, None
+
             return start_time, end_time
 
         return None, None
 
-    def clean_html_content(self, html_content: str) -> str:
-        """
-        Clean HTML content and convert to plain text
-
-        Args:
-            html_content: Raw HTML content from email
-
-        Returns:
-            Cleaned plain text content
-        """
-        # Parse HTML
-        soup = BeautifulSoup(html_content, "html.parser")
-
-        # Remove script and style elements
-        for script in soup(["script", "style"]):
-            script.decompose()
-
-        # Add line breaks before certain elements to preserve structure
-        for tag in soup.find_all(["div", "br", "p"]):
-            if tag.name == "br":
-                tag.replace_with("\n")
-            else:
-                # Add newlines around block elements
-                tag.insert(0, "\n")
-                tag.append("\n")
-
-        # Get text content
-        text = soup.get_text()
-
-        # Clean up whitespace and line breaks
-        lines = []
-        for line in text.split("\n"):
-            line = line.strip()
-            if line:
-                lines.append(line)
-
-        return "\n".join(lines)
 
     def parse_date_range(
         self, date_str: str, month: int, year: int
@@ -499,6 +518,23 @@ class EmailEventParser:
                         # Same-month range like "22-23"
                         end_day = int(clean_ordinal(end_part))
                         end_date = date(year, month, end_day)
+
+                        # Validate that end date is after start date
+                        if end_date <= start_date:
+                            # If end date is before or equal to start date, assume it's next month
+                            # Handle month rollover
+                            next_month = month + 1
+                            next_year = year
+                            if next_month > 12:
+                                next_month = 1
+                                next_year += 1
+
+                            try:
+                                end_date = date(next_year, next_month, end_day)
+                            except ValueError:
+                                # If the day doesn't exist in next month, skip this range
+                                return start_date, None
+
                         return start_date, end_date
 
                 except (ValueError, TypeError):
