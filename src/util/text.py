@@ -221,7 +221,7 @@ class EmailEventParser:
         Parse time string into time object
 
         Args:
-            time_str: Time string (e.g., "2pm", "10:30am", "830", "2:15", "noon")
+            time_str: Time string (e.g., "2pm", "10:30am", "830", "2:15", "noon", "10", "2-245")
 
         Returns:
             Parsed time object or None if parsing fails
@@ -237,6 +237,13 @@ class EmailEventParser:
         elif time_str == "midnight":
             return time(0, 0)
 
+        # Handle time ranges like "2-245" - extract only the start time
+        time_range_match = re.match(r"^(\d{1,2})-(\d{1,4})$", time_str)
+        if time_range_match:
+            start_time_str = time_range_match.group(1)
+            # Recursively parse the start time
+            return self.parse_time(start_time_str)
+
         # Handle various time formats
         time_patterns = [
             r"^(\d{1,2}):(\d{2})\s*(am|pm)?$",  # 2:30pm, 10:15
@@ -244,7 +251,7 @@ class EmailEventParser:
             r"^(\d{3,4})\s*(am|pm)$",  # 830am, 1020am (WITH am/pm required)
             r"^(\d{3,4})ish$",  # 830ish, 1020ish
             r"^(\d{3,4})$",  # 830, 1020 (without am/pm)
-            r"^(\d{1,2})$",  # 14 (assume 24-hour if >12, otherwise needs context)
+            r"^(\d{1,2})$",  # Single digit hours like "10", "2" (assume appropriate AM/PM)
         ]
 
         for pattern in time_patterns:
@@ -312,16 +319,20 @@ class EmailEventParser:
                     else:
                         continue
                     ampm = None
-                else:  # Single digit hour
+                else:  # Single digit hour (like "10", "2")
                     hour, minute = int(groups[0]), 0
                     ampm = None
-                    # If no am/pm and hour <= 12, assume it needs am/pm context
-                    if hour <= 12:
-                        # For common appointment times, assume PM if reasonable
-                        if 1 <= hour <= 5:
-                            ampm = "pm"
-                        elif hour >= 6:
-                            ampm = "am"
+                    # Smart AM/PM inference for single digit hours
+                    if hour >= 1 and hour <= 5:
+                        # Hours 1-5 are likely PM for appointments
+                        hour += 12
+                    elif hour >= 6 and hour <= 11:
+                        # Hours 6-11 are likely AM
+                        pass  # Keep as is
+                    elif hour == 12:
+                        # 12 is likely PM (noon)
+                        pass  # Keep as is
+                    # Hours >= 13 are already in 24-hour format
 
                 # Handle AM/PM (only if not already processed above)
                 if ampm == "pm" and hour != 12:
@@ -334,6 +345,92 @@ class EmailEventParser:
                     return time(hour, minute)
 
         return None
+
+    def parse_time_range(self, time_range_str: str) -> Tuple[Optional[time], Optional[time]]:
+        """
+        Parse time range string into start and end time objects
+
+        Args:
+            time_range_str: Time range string (e.g., "2-245" meaning 2:00-2:45)
+
+        Returns:
+            Tuple of (start_time, end_time) or (None, None) if parsing fails
+        """
+        if not time_range_str:
+            return None, None
+
+        # Handle time ranges like "2-245"
+        time_range_match = re.match(r"^(\d{1,2})-(\d{1,4})$", time_range_str.strip())
+        if time_range_match:
+            start_str = time_range_match.group(1)
+            end_str = time_range_match.group(2)
+
+            # Parse start time
+            start_time = self.parse_time(start_str)
+            if not start_time:
+                return None, None
+
+            # Parse end time - need to handle formats like "245" meaning 2:45
+            end_time = None
+            if len(end_str) == 3:  # "245" = 2:45
+                hour = int(end_str[0])
+                minute = int(end_str[1:])
+                # Use same AM/PM logic as start time
+                if start_time.hour >= 12:  # Start time is PM
+                    if hour < 12:
+                        hour += 12
+                end_time = time(hour, minute)
+            elif len(end_str) == 4:  # "1245" = 12:45
+                hour = int(end_str[:2])
+                minute = int(end_str[2:])
+                # Use same AM/PM logic as start time
+                if start_time.hour >= 12 and hour < 12:  # Start is PM, end should be PM too
+                    hour += 12
+                end_time = time(hour, minute)
+            else:  # Single or double digit - treat as hour
+                end_time = self.parse_time(end_str)
+
+            return start_time, end_time
+
+        return None, None
+
+    def clean_html_content(self, html_content: str) -> str:
+        """
+        Clean HTML content and convert to plain text
+
+        Args:
+            html_content: Raw HTML content from email
+
+        Returns:
+            Cleaned plain text content
+        """
+        # Parse HTML
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+
+        # Add line breaks before certain elements to preserve structure
+        for tag in soup.find_all(["div", "br", "p"]):
+            if tag.name == "br":
+                tag.replace_with("\n")
+            else:
+                # Add newlines around block elements
+                tag.insert(0, "\n")
+                tag.append("\n")
+
+        # Get text content
+        text = soup.get_text()
+
+        # Clean up whitespace and line breaks
+        lines = []
+        for line in text.split("\n"):
+            line = line.strip()
+            if line:
+                lines.append(line)
+
+        return "\n".join(lines)
 
     def parse_date_range(
         self, date_str: str, month: int, year: int
@@ -413,6 +510,36 @@ class EmailEventParser:
 
         return None, None
 
+    def clean_event_line(self, line: str) -> str:
+        """
+        Clean special characters and extra whitespace from event lines before parsing
+
+        Args:
+            line: Raw event line that may contain special characters
+
+        Returns:
+            Cleaned line ready for parsing
+        """
+        if not line:
+            return line
+
+        # Remove common special characters that interfere with parsing
+        # Keep important characters like hyphens (for date ranges), colons (for times),
+        # parentheses (for notes), and basic punctuation
+        # IMPORTANT: Removed colon (:) from removal pattern to preserve time parsing
+        special_chars_to_remove = r'[><!@#$%^&*_+=\[\]{}\\|;"\'`~]'
+
+        # Replace special characters with spaces, then clean up multiple spaces
+        cleaned = re.sub(special_chars_to_remove, ' ', line)
+
+        # Clean up multiple whitespace characters
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+
+        # Strip leading/trailing whitespace
+        cleaned = cleaned.strip()
+
+        return cleaned
+
     def parse_event_line(
         self,
         line: str,
@@ -438,6 +565,12 @@ class EmailEventParser:
         line = line.strip()
 
         if not line:
+            return events
+
+        # Clean special characters and extra whitespace before parsing
+        line = self.clean_event_line(line)
+
+        if not line:  # Check again after cleaning
             return events
 
         # Check for tentative events (containing "or")
@@ -501,19 +634,39 @@ class EmailEventParser:
                 r"\b(\d{3,4})\b(?!\s*(?:am|pm|ish))",  # 830, 1015 (without am/pm, not followed by am/pm/ish)
                 r"\b(\d{3,4})ish\b",  # 830ish, 1020ish
                 r"\b(noon|midnight)\b",  # noon, midnight
+                r"\b(\d{1,2})-(\d{1,4})\b",  # Time ranges like "2-245" (2:00-2:45) or "9-10" (9:00-10:00)
+                r"\b(\d{1,2})\b(?!\s*(?:am|pm|ish|\d))",  # Single digit hours like "10" (but not followed by am/pm/ish/digits)
             ]
 
             found_times = []
+            found_time_ranges = []
+
             for pattern in time_patterns:
                 matches = re.finditer(pattern, rest, re.IGNORECASE)
                 for match in matches:
                     time_str = match.group(0)
-                    parsed_time = self.parse_time(time_str)
-                    if parsed_time:
-                        found_times.append((parsed_time, match.span()))
 
-            # Remove time strings from summary and assign start/end times
-            if found_times:
+                    # Check if this is a time range pattern
+                    if re.match(r"\b(\d{1,2})-(\d{1,4})\b", time_str):
+                        # Parse as time range
+                        start_time_parsed, end_time_parsed = self.parse_time_range(time_str)
+                        if start_time_parsed:
+                            found_time_ranges.append((start_time_parsed, end_time_parsed, match.span()))
+                    else:
+                        # Parse as single time
+                        parsed_time = self.parse_time(time_str)
+                        if parsed_time:
+                            found_times.append((parsed_time, match.span()))
+
+            # Handle time extraction - prioritize time ranges over individual times
+            if found_time_ranges:
+                # Use the first time range found
+                start_time, end_time = found_time_ranges[0][0], found_time_ranges[0][1]
+                # Remove the time range from summary
+                time_range_span = found_time_ranges[0][2]
+                summary = summary[:time_range_span[0]] + summary[time_range_span[1]:]
+
+            elif found_times:
                 # Sort by position in text
                 found_times.sort(key=lambda x: x[1][0])
 
@@ -529,8 +682,8 @@ class EmailEventParser:
                 for span in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
                     summary = summary[: span[0]] + summary[span[1] :]
 
-                # Clean up extra spaces in summary
-                summary = re.sub(r"\s+", " ", summary).strip()
+            # Clean up extra spaces in summary
+            summary = re.sub(r"\s+", " ", summary).strip()
 
             # Determine if it's an all-day event
             is_all_day = start_time is None and end_time is None
