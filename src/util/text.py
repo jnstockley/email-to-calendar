@@ -1,12 +1,11 @@
 import re
 from datetime import datetime, date, time, timedelta
-from typing import List, Optional, Tuple
 from dataclasses import dataclass
-
+from typing import Optional, List, Tuple
 from bs4 import BeautifulSoup
 
-from src.model.email import EMail
 from src.model.event import Event
+from src.model.email import EMail
 
 
 @dataclass
@@ -65,13 +64,46 @@ class ParsedEvent:
                 # Same-day event with only start time - assume 1 hour duration
                 end_datetime = start_datetime + timedelta(hours=1)
 
+        # Clean the summary of any formatting before creating the event
+        clean_summary = self.strip_formatting(self.summary)
+
         return Event(
             start=start_datetime,
             end=end_datetime,
-            summary=self.summary,
+            summary=clean_summary,
             email_id=self.email.id,
             in_calendar=False,
         )
+
+    def strip_formatting(self, text: str) -> str:
+        """
+        Remove markdown and HTML formatting from text
+
+        Args:
+            text: Text that may contain markdown or HTML formatting
+
+        Returns:
+            Clean text without formatting
+        """
+        if not text:
+            return text
+
+        # Remove markdown formatting
+        # Bold/italic: **text**, __text__, *text*, _text_
+        text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # **bold**
+        text = re.sub(r"__([^_]+)__", r"\1", text)      # __bold__
+        text = re.sub(r"\*([^*]+)\*", r"\1", text)      # *italic*
+        text = re.sub(r"_([^_]+)_", r"\1", text)        # _italic_
+
+        # Remove HTML tags if present
+        if "<" in text and ">" in text:
+            soup = BeautifulSoup(text, "html.parser")
+            text = soup.get_text()
+
+        # Clean up extra whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return text
 
 
 class EmailEventParser:
@@ -493,10 +525,11 @@ class EmailEventParser:
                 current_year = int(year_match.group(1))
                 continue
 
-            # Check for month
-            month_match = re.match(r"^\s*(\w+)\s*$", line, re.IGNORECASE)
+            # Check for month - strip formatting first
+            month_match = re.match(r"^\s*([*_#]+)?(\w+)([*_#]+)?\s*$", line, re.IGNORECASE)
             if month_match:
-                month_name = month_match.group(1).lower()
+                # Extract the month name without formatting
+                month_name = month_match.group(2).lower()
                 if month_name in self.MONTHS:
                     new_month = self.MONTHS[month_name]
 
