@@ -148,6 +148,36 @@ class EmailEventParser:
         self.current_year = delivery_date.year
         self.current_month = None
 
+    def strip_formatting(self, text: str) -> str:
+        """
+        Remove markdown and HTML formatting from text
+
+        Args:
+            text: Text that may contain markdown or HTML formatting
+
+        Returns:
+            Clean text without formatting
+        """
+        if not text:
+            return text
+
+        # Remove markdown formatting
+        # Bold/italic: **text**, __text__, *text*, _text_
+        text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # **bold**
+        text = re.sub(r"__([^_]+)__", r"\1", text)      # __bold__
+        text = re.sub(r"\*([^*]+)\*", r"\1", text)      # *italic*
+        text = re.sub(r"_([^_]+)_", r"\1", text)        # _italic_
+
+        # Remove HTML tags if present
+        if "<" in text and ">" in text:
+            soup = BeautifulSoup(text, "html.parser")
+            text = soup.get_text()
+
+        # Clean up extra whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return text
+
     def clean_html_content(self, html_content: str) -> str:
         """
         Clean HTML content and convert to plain text
@@ -309,10 +339,10 @@ class EmailEventParser:
         self, date_str: str, month: int, year: int
     ) -> Tuple[Optional[date], Optional[date]]:
         """
-        Parse date or date range string
+        Parse date or date range string, including cross-month ranges
 
         Args:
-            date_str: Date string (e.g., "15", "22-23", "8-11", "21st", "22nd-24th")
+            date_str: Date string (e.g., "15", "22-23", "8-11", "21st", "22nd-24th", "25-July 4")
             month: Current month number
             year: Current year
 
@@ -332,16 +362,45 @@ class EmailEventParser:
                 return match.group(1)
             return day_str
 
-        # Handle date ranges (e.g., "22-23", "8-11", "21st-23rd", "1st-3rd")
+        # Handle date ranges (including cross-month like "25-July 4")
         if "-" in date_str:
-            parts = date_str.split("-")
+            parts = date_str.split("-", 1)  # Split only on first dash
             if len(parts) == 2:
+                start_part = parts[0].strip()
+                end_part = parts[1].strip()
+
                 try:
-                    start_day = int(clean_ordinal(parts[0]))
-                    end_day = int(clean_ordinal(parts[1]))
+                    # Parse start date (always in current month)
+                    start_day = int(clean_ordinal(start_part))
                     start_date = date(year, month, start_day)
-                    end_date = date(year, month, end_day)
-                    return start_date, end_date
+
+                    # Check if end part contains a month name (cross-month range)
+                    # Pattern like "July 4" or "July4" or "July-4"
+                    month_day_pattern = r"^(\w+)\s*-?\s*(\d+)(?:st|nd|rd|th)?$"
+                    cross_month_match = re.match(month_day_pattern, end_part, re.IGNORECASE)
+
+                    if cross_month_match:
+                        # Cross-month range like "25-July 4"
+                        end_month_name = cross_month_match.group(1).lower()
+                        end_day_str = cross_month_match.group(2)
+
+                        if end_month_name in self.MONTHS:
+                            end_month = self.MONTHS[end_month_name]
+                            end_day = int(clean_ordinal(end_day_str))
+
+                            # Handle year transition if end month is earlier than start month
+                            end_year = year
+                            if end_month < month:
+                                end_year += 1
+
+                            end_date = date(end_year, end_month, end_day)
+                            return start_date, end_date
+                    else:
+                        # Same-month range like "22-23"
+                        end_day = int(clean_ordinal(end_part))
+                        end_date = date(year, month, end_day)
+                        return start_date, end_date
+
                 except (ValueError, TypeError):
                     pass
 
@@ -392,8 +451,9 @@ class EmailEventParser:
             if not event_part:
                 continue
 
-            # Look for date patterns at the start (including ordinal suffixes)
-            date_time_pattern = r"^(\d+(?:st|nd|rd|th)?(?:-\d+(?:st|nd|rd|th)?)?(?:\s+or\s+\d+(?:st|nd|rd|th)?(?:-\d+(?:st|nd|rd|th)?)?)*)\s*(.*)$"
+            # Look for date patterns at the start (including cross-month patterns like "25-July 4")
+            # Updated regex to handle cross-month patterns with month names
+            date_time_pattern = r"^(\d+(?:st|nd|rd|th)?(?:-(?:\d+(?:st|nd|rd|th)?|\w+\s*\d+(?:st|nd|rd|th)?))?)(?:\s+or\s+\d+(?:st|nd|rd|th)?(?:-(?:\d+(?:st|nd|rd|th)?|\w+\s*\d+(?:st|nd|rd|th)?))?)?\s*(.*)$"
             match = re.match(date_time_pattern, event_part, re.IGNORECASE)
 
             start_date = None
@@ -475,13 +535,25 @@ class EmailEventParser:
             # Determine if it's an all-day event
             is_all_day = start_time is None and end_time is None
 
+            # Clean summary and check if it's valid
+            clean_summary = self.strip_formatting(summary)
+
+            # Skip events with empty or formatting-only summaries
+            if not clean_summary or clean_summary in ['**', '*', '__', '_', '***', '___', '>', '>>']:
+                continue
+
+            # Additional check: Skip if the clean summary is just a month name
+            # This prevents month names from being treated as events
+            if clean_summary.lower() in self.MONTHS:
+                continue
+
             # Create the event
             event = ParsedEvent(
                 start_date=start_date,
                 end_date=end_date,
                 start_time=start_time,
                 end_time=end_time,
-                summary=summary,
+                summary=clean_summary,  # Use cleaned summary
                 is_all_day=is_all_day,
                 is_tentative=is_tentative,
                 email=email,
@@ -525,24 +597,28 @@ class EmailEventParser:
                 current_year = int(year_match.group(1))
                 continue
 
-            # Check for month - strip formatting first
+            # Check for month - strip formatting first and be more restrictive
+            # Only match if it's ONLY a month name with optional formatting, no other content
             month_match = re.match(r"^\s*([*_#]+)?(\w+)([*_#]+)?\s*$", line, re.IGNORECASE)
             if month_match:
                 # Extract the month name without formatting
                 month_name = month_match.group(2).lower()
                 if month_name in self.MONTHS:
-                    new_month = self.MONTHS[month_name]
+                    # Additional check: make sure this isn't part of a larger event description
+                    # Skip if the line contains numbers, which likely indicates it's an event
+                    if not re.search(r'\d', line):
+                        new_month = self.MONTHS[month_name]
 
-                    # Handle year increment when months loop (Dec -> Jan)
-                    if current_month and new_month < current_month:
-                        # Only increment year if we go from a late month to early month
-                        if (
-                            current_month >= 10 and new_month <= 3
-                        ):  # Oct/Nov/Dec -> Jan/Feb/Mar
-                            current_year += 1
+                        # Handle year increment when months loop (Dec -> Jan)
+                        if current_month and new_month < current_month:
+                            # Only increment year if we go from a late month to early month
+                            if (
+                                current_month >= 10 and new_month <= 3
+                            ):  # Oct/Nov/Dec -> Jan/Feb/Mar
+                                current_year += 1
 
-                    current_month = new_month
-                    continue
+                        current_month = new_month
+                        continue
 
             # Parse event line if we have a current month
             if current_month:
