@@ -4,9 +4,14 @@
 uvx ruff check
 uvx ruff format --check
 
-# Run Shell linter
-find . -type f \( -name '*.sh' -o -name '*.bash' -o -name '*.ksh' -o -name '*.bashrc' -o -name '*.bash_profile' -o -name '*.bash_login' -o -name '*.bash_logout' \) -print0 | xargs -0 shellcheck -x -S style
-shfmt --diff -i 4 -ci .
+# Run Shell linter, ignoring files in .gitignore
+git ls-files --cached --others --exclude-standard |
+    grep -E '\.sh$|\.bash$|\.ksh$|\.bashrc$|\.bash_profile$|\.bash_login$|\.bash_logout$' |
+    xargs -r shellcheck -x -S style
+
+git ls-files --cached --others --exclude-standard |
+    grep -E '\.sh$|\.bash$|\.ksh$|\.bashrc$|\.bash_profile$|\.bash_login$|\.bash_logout$' |
+    xargs -r shfmt --diff -i 4 -ci
 
 # Run YAML linter
 yamllint -s .
