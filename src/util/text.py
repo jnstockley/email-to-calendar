@@ -84,13 +84,18 @@ class ParsedEvent:
                     # This commonly happens with AM/PM parsing issues
 
                     # If both times are in the same half of the day, add 12 hours to end time
-                    if (self.start_time.hour < 12 and self.end_time.hour < 12) or \
-                       (self.start_time.hour >= 12 and self.end_time.hour >= 12):
+                    if (self.start_time.hour < 12 and self.end_time.hour < 12) or (
+                        self.start_time.hour >= 12 and self.end_time.hour >= 12
+                    ):
                         # Both are AM or both are PM, likely one should be PM when other is AM
                         if self.end_time.hour < 12:
                             # End time is AM, make it PM
-                            fixed_end_time = time(self.end_time.hour + 12, self.end_time.minute)
-                            end_datetime = datetime.combine(self.start_date, fixed_end_time)
+                            fixed_end_time = time(
+                                self.end_time.hour + 12, self.end_time.minute
+                            )
+                            end_datetime = datetime.combine(
+                                self.start_date, fixed_end_time
+                            )
 
                     # If it's still not fixed, just add some reasonable duration
                     if end_datetime <= start_datetime:
@@ -127,9 +132,9 @@ class ParsedEvent:
         # Remove markdown formatting
         # Bold/italic: **text**, __text__, *text*, _text_
         text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # **bold**
-        text = re.sub(r"__([^_]+)__", r"\1", text)      # __bold__
-        text = re.sub(r"\*([^*]+)\*", r"\1", text)      # *italic*
-        text = re.sub(r"_([^_]+)_", r"\1", text)        # _italic_
+        text = re.sub(r"__([^_]+)__", r"\1", text)  # __bold__
+        text = re.sub(r"\*([^*]+)\*", r"\1", text)  # *italic*
+        text = re.sub(r"_([^_]+)_", r"\1", text)  # _italic_
 
         # Remove HTML tags if present
         if "<" in text and ">" in text:
@@ -139,8 +144,7 @@ class ParsedEvent:
         # Remove unwanted special characters from summaries
         # Keep only letters, numbers, spaces, and basic punctuation (periods, commas, apostrophes, parentheses)
         # Remove problematic characters like colons, dashes, etc. that clutter summaries
-        text = re.sub(r'[><!@#$%^&*_+=\[\]{}\\|;:"\'`~-]', ' ', text).strip()
-
+        text = re.sub(r'[><!@#$%^&*_+=\[\]{}\\|;:"\'`~-]', " ", text).strip()
 
         return text
 
@@ -203,9 +207,9 @@ class EmailEventParser:
         # Remove markdown formatting
         # Bold/italic: **text**, __text__, *text*, _text_
         text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # **bold**
-        text = re.sub(r"__([^_]+)__", r"\1", text)      # __bold__
-        text = re.sub(r"\*([^*]+)\*", r"\1", text)      # *italic*
-        text = re.sub(r"_([^_]+)_", r"\1", text)        # _italic_
+        text = re.sub(r"__([^_]+)__", r"\1", text)  # __bold__
+        text = re.sub(r"\*([^*]+)\*", r"\1", text)  # *italic*
+        text = re.sub(r"_([^_]+)_", r"\1", text)  # _italic_
 
         # Remove HTML tags if present
         if "<" in text and ">" in text:
@@ -385,7 +389,9 @@ class EmailEventParser:
 
         return None
 
-    def parse_time_range(self, time_range_str: str) -> Tuple[Optional[time], Optional[time]]:
+    def parse_time_range(
+        self, time_range_str: str
+    ) -> Tuple[Optional[time], Optional[time]]:
         """
         Parse time range string into start and end time objects
 
@@ -423,7 +429,9 @@ class EmailEventParser:
                 hour = int(end_str[:2])
                 minute = int(end_str[2:])
                 # Use same AM/PM logic as start time
-                if start_time.hour >= 12 and hour < 12:  # Start is PM, end should be PM too
+                if (
+                    start_time.hour >= 12 and hour < 12
+                ):  # Start is PM, end should be PM too
                     hour += 12
                 end_time = time(hour, minute)
             else:  # Single or double digit - treat as hour
@@ -452,7 +460,6 @@ class EmailEventParser:
             return start_time, end_time
 
         return None, None
-
 
     def parse_date_range(
         self, date_str: str, month: int, year: int
@@ -496,7 +503,9 @@ class EmailEventParser:
                     # Check if end part contains a month name (cross-month range)
                     # Pattern like "July 4" or "July4" or "July-4"
                     month_day_pattern = r"^(\w+)\s*-?\s*(\d+)(?:st|nd|rd|th)?$"
-                    cross_month_match = re.match(month_day_pattern, end_part, re.IGNORECASE)
+                    cross_month_match = re.match(
+                        month_day_pattern, end_part, re.IGNORECASE
+                    )
 
                     if cross_month_match:
                         # Cross-month range like "25-July 4"
@@ -569,10 +578,10 @@ class EmailEventParser:
         special_chars_to_remove = r'[><!@#$%^&*_+=\[\]{}\\|;"\'`~]'
 
         # Replace special characters with spaces, then clean up multiple spaces
-        cleaned = re.sub(special_chars_to_remove, ' ', line)
+        cleaned = re.sub(special_chars_to_remove, " ", line)
 
         # Clean up multiple whitespace characters
-        cleaned = re.sub(r'\s+', ' ', cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned)
 
         # Strip leading/trailing whitespace
         cleaned = cleaned.strip()
@@ -616,7 +625,7 @@ class EmailEventParser:
         is_tentative = " or " in line.lower()
 
         # Split on & and "and" for multiple events on same line
-        event_parts = re.split(r"\s*&\s*|\s+\s+", line, flags=re.IGNORECASE) # and
+        event_parts = re.split(r"\s*&\s*|\s+\s+", line, flags=re.IGNORECASE)  # and
 
         for event_part in event_parts:
             event_part = event_part.strip()
@@ -688,9 +697,13 @@ class EmailEventParser:
                     # Check if this is a time range pattern
                     if re.match(r"\b(\d{1,2})-(\d{1,4})\b", time_str):
                         # Parse as time range
-                        start_time_parsed, end_time_parsed = self.parse_time_range(time_str)
+                        start_time_parsed, end_time_parsed = self.parse_time_range(
+                            time_str
+                        )
                         if start_time_parsed:
-                            found_time_ranges.append((start_time_parsed, end_time_parsed, match.span()))
+                            found_time_ranges.append(
+                                (start_time_parsed, end_time_parsed, match.span())
+                            )
                     else:
                         # Parse as single time
                         parsed_time = self.parse_time(time_str)
@@ -704,7 +717,7 @@ class EmailEventParser:
                 start_time, end_time = found_time_ranges[0][0], found_time_ranges[0][1]
                 # Remove the time range from summary
                 time_range_span = found_time_ranges[0][2]
-                summary = summary[:time_range_span[0]] + summary[time_range_span[1]:]
+                summary = summary[: time_range_span[0]] + summary[time_range_span[1] :]
 
             elif found_times:
                 # Sort by position in text
@@ -727,7 +740,7 @@ class EmailEventParser:
 
                 # Remove each unique time string once
                 for time_str in unique_time_strings:
-                    summary = summary.replace(time_str, ' ', 1)
+                    summary = summary.replace(time_str, " ", 1)
 
             # Clean up extra spaces in summary
             summary = re.sub(r"\s+", " ", summary).strip()
@@ -739,7 +752,16 @@ class EmailEventParser:
             clean_summary = self.strip_formatting(summary)
 
             # Skip events with empty or formatting-only summaries
-            if not clean_summary or clean_summary in ['**', '*', '__', '_', '***', '___', '>', '>>']:
+            if not clean_summary or clean_summary in [
+                "**",
+                "*",
+                "__",
+                "_",
+                "***",
+                "___",
+                ">",
+                ">>",
+            ]:
                 continue
 
             # Additional check: Skip if the clean summary is just a month name
@@ -799,14 +821,16 @@ class EmailEventParser:
 
             # Check for month - strip formatting first and be more restrictive
             # Only match if it's ONLY a month name with optional formatting, no other content
-            month_match = re.match(r"^\s*([*_#]+)?(\w+)([*_#]+)?\s*$", line, re.IGNORECASE)
+            month_match = re.match(
+                r"^\s*([*_#]+)?(\w+)([*_#]+)?\s*$", line, re.IGNORECASE
+            )
             if month_match:
                 # Extract the month name without formatting
                 month_name = month_match.group(2).lower()
                 if month_name in self.MONTHS:
                     # Additional check: make sure this isn't part of a larger event description
                     # Skip if the line contains numbers, which likely indicates it's an event
-                    if not re.search(r'\d', line):
+                    if not re.search(r"\d", line):
                         new_month = self.MONTHS[month_name]
 
                         # Handle year increment when months loop (Dec -> Jan)

@@ -47,14 +47,18 @@ class Event(Base):
                 # Preserve email linkage if existing record has it but new instance doesn't
                 if self.email_id is None and existing_exact.email_id is not None:
                     self.email_id = existing_exact.email_id
-                self.id = existing_exact.id  # Update the ID to match the existing record
+                self.id = (
+                    existing_exact.id
+                )  # Update the ID to match the existing record
                 session.merge(self)
                 session.commit()
                 return
 
             # Check for events with the same summary but different start/end times
             if self.email_id is not None:
-                from src.model.email import EMail  # Import here to avoid circular import
+                from src.model.email import (
+                    EMail,
+                )  # Import here to avoid circular import
 
                 # Get all events with the same summary
                 existing_events_with_same_summary = (
@@ -66,15 +70,24 @@ class Event(Base):
 
                 if existing_events_with_same_summary:
                     # Get the current email's delivery date
-                    current_email = session.query(EMail).filter_by(id=self.email_id).first()
+                    current_email = (
+                        session.query(EMail).filter_by(id=self.email_id).first()
+                    )
                     if current_email:
                         current_delivery_date = current_email.delivery_date
 
                         # Check if any existing events are from older emails
                         events_to_remove = []
                         for existing_event in existing_events_with_same_summary:
-                            existing_email = session.query(EMail).filter_by(id=existing_event.email_id).first()
-                            if existing_email and existing_email.delivery_date < current_delivery_date:
+                            existing_email = (
+                                session.query(EMail)
+                                .filter_by(id=existing_event.email_id)
+                                .first()
+                            )
+                            if (
+                                existing_email
+                                and existing_email.delivery_date < current_delivery_date
+                            ):
                                 events_to_remove.append(existing_event)
 
                         # Remove older events with the same summary
@@ -85,8 +98,16 @@ class Event(Base):
                         has_newer_event = False
                         for existing_event in existing_events_with_same_summary:
                             if existing_event not in events_to_remove:
-                                existing_email = session.query(EMail).filter_by(id=existing_event.email_id).first()
-                                if existing_email and existing_email.delivery_date > current_delivery_date:
+                                existing_email = (
+                                    session.query(EMail)
+                                    .filter_by(id=existing_event.email_id)
+                                    .first()
+                                )
+                                if (
+                                    existing_email
+                                    and existing_email.delivery_date
+                                    > current_delivery_date
+                                ):
                                     has_newer_event = True
                                     break
 
