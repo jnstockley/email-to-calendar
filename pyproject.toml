@@ -1,16 +1,16 @@
 [project]
 name = "email-to-calendar"
 version = "0.1.0"
-description = "Takes emails from an IMAP server, parses that body, using regex, and creates event(s) in an iCal calendar"
+description = "Takes emails from an IMAP server, parses the body, and creates event(s) in a CalDAV calendar"
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
-    "caldav>=2.0.1",
-    "sqlalchemy>=2.0.43",
-    "tzlocal>=5.3.1",
-    "beautifulsoup4>=4.12.0",
-    "python-dateutil>=2.8.0",
-    "html2text>=2020.1.16",
+    "caldav==2.0.1",
+    "sqlalchemy==2.0.43",
+    "tzlocal==5.3.1",
+    "beautifulsoup4==4.12.0",
+    "python-dateutil==2.9.0",
+    "html2text==2020.1.16",
 ]
 
 [dependency-groups]
