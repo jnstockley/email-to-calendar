@@ -37,18 +37,76 @@ class Event(Base):
     def save(self):
         session = SessionLocal()
         try:
-            existing = (
+            # First check for exact duplicates (same start, end, and summary)
+            existing_exact = (
                 session.query(Event)
                 .filter_by(start=self.start, end=self.end, summary=self.summary)
                 .one_or_none()
             )
-            if existing:
+            if existing_exact:
                 # Preserve email linkage if existing record has it but new instance doesn't
-                if self.email_id is None and existing.email_id is not None:
-                    self.email_id = existing.email_id
-                self.id = existing.id  # Update the ID to match the existing record
-            session.merge(self)
-            session.commit()
+                if self.email_id is None and existing_exact.email_id is not None:
+                    self.email_id = existing_exact.email_id
+                self.id = existing_exact.id  # Update the ID to match the existing record
+                session.merge(self)
+                session.commit()
+                return
+
+            # Check for events with the same summary but different start/end times
+            if self.email_id is not None:
+                from src.model.email import EMail  # Import here to avoid circular import
+
+                # Get all events with the same summary
+                existing_events_with_same_summary = (
+                    session.query(Event)
+                    .filter_by(summary=self.summary)
+                    .filter(Event.email_id.isnot(None))
+                    .all()
+                )
+
+                if existing_events_with_same_summary:
+                    # Get the current email's delivery date
+                    current_email = session.query(EMail).filter_by(id=self.email_id).first()
+                    if current_email:
+                        current_delivery_date = current_email.delivery_date
+
+                        # Check if any existing events are from older emails
+                        events_to_remove = []
+                        for existing_event in existing_events_with_same_summary:
+                            existing_email = session.query(EMail).filter_by(id=existing_event.email_id).first()
+                            if existing_email and existing_email.delivery_date < current_delivery_date:
+                                events_to_remove.append(existing_event)
+
+                        # Remove older events with the same summary
+                        for event_to_remove in events_to_remove:
+                            session.delete(event_to_remove)
+
+                        # Also check if there are newer events with the same summary
+                        has_newer_event = False
+                        for existing_event in existing_events_with_same_summary:
+                            if existing_event not in events_to_remove:
+                                existing_email = session.query(EMail).filter_by(id=existing_event.email_id).first()
+                                if existing_email and existing_email.delivery_date > current_delivery_date:
+                                    has_newer_event = True
+                                    break
+
+                        # Only save the current event if there are no newer events with the same summary
+                        if not has_newer_event:
+                            session.merge(self)
+                            session.commit()
+                        # If there is a newer event, don't save the current event
+                    else:
+                        # If we can't get the email, proceed with normal save
+                        session.merge(self)
+                        session.commit()
+                else:
+                    # No existing events with same summary, proceed with normal save
+                    session.merge(self)
+                    session.commit()
+            else:
+                # No email_id, proceed with normal save
+                session.merge(self)
+                session.commit()
         finally:
             session.close()
 
