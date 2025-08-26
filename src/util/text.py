@@ -616,7 +616,7 @@ class EmailEventParser:
         is_tentative = " or " in line.lower()
 
         # Split on & and "and" for multiple events on same line
-        event_parts = re.split(r"\s*&\s*|\s+and\s+", line, flags=re.IGNORECASE)
+        event_parts = re.split(r"\s*&\s*|\s+\s+", line, flags=re.IGNORECASE) # and
 
         for event_part in event_parts:
             event_part = event_part.strip()
@@ -695,7 +695,8 @@ class EmailEventParser:
                         # Parse as single time
                         parsed_time = self.parse_time(time_str)
                         if parsed_time:
-                            found_times.append((parsed_time, match.span()))
+                            # Store both the original string and parsed time for proper removal
+                            found_times.append((parsed_time, match.span(), time_str))
 
             # Handle time extraction - prioritize time ranges over individual times
             if found_time_ranges:
@@ -716,10 +717,17 @@ class EmailEventParser:
                 if len(found_times) >= 2:
                     end_time = found_times[1][0]
 
-                # Remove time strings from summary (in reverse order to preserve positions)
-                spans_to_remove = [t[1] for t in found_times]
-                for span in sorted(spans_to_remove, key=lambda x: x[0], reverse=True):
-                    summary = summary[: span[0]] + summary[span[1] :]
+                # Remove time strings from summary using safer string replacement
+                # Only remove unique time strings to avoid removing the same pattern multiple times
+                unique_time_strings = []
+                for time_info in found_times:
+                    time_str = time_info[2]  # Now the original string is at index 2
+                    if time_str not in unique_time_strings:
+                        unique_time_strings.append(time_str)
+
+                # Remove each unique time string once
+                for time_str in unique_time_strings:
+                    summary = summary.replace(time_str, ' ', 1)
 
             # Clean up extra spaces in summary
             summary = re.sub(r"\s+", " ", summary).strip()
