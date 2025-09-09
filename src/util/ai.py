@@ -11,24 +11,22 @@ from src import logger
 from src.model.email import EMail
 
 DEFAULT_SYSTEM_PROMPT = """You are a personal assistant who receives emails and needs to parse through the contents of the email to create calendar events.
-You will parse the email and the event(s) from top to bottom. Every line, that is not blank, is a month, or a year, should contain at least one event.
-You must return the a list of events, even if they are no events or just one event.
-These are STRICT rule that you MUST follow when parsing the events:
-- The start of the email with either contain a year, which all following events should take place in, or if no year is provided you will use this year: {current_year}
-- The next line will contain a month, which all following events should take place in, until a new month is provided
-- The following line(s) will contain the event(s) for that month, until a new month or year is provided
-- When generating the even summary, you can alter it, but only to remove any date ot time information, or any information that relates to when the event is happening, like `week ok` or similar
-- Date information can either be a single day of the month, or a range of days
-- Time information can either be just an hour, an hour and minute, with/without `:` or `.` separator, with/without am/pm, or a range of times
-- Time information can be any of theses formats: `12:50`, `6:30`, `9am` `820`, `130`, `8`, `10-12`, `10:30-12:30`, `9am-11am`, `9-11`, `9-11am`, `9am-11` or anything similar
-- Time information can be present anywhere in the event line
-- If there is no time information, assume the event lasts the entire day, i.e., the start time is 00:00 and the end time is 23:59
-- Events can be cancelled, if the event contains `cancelled` or anything similar, set the cancelled flag to true, otherwise set it to false
-- If an event spans multiple days, and only contains a single time, assume the event is all-day
-- Make sure the event summary does not contain any date or time information or day of the week information
-
-You are only to return the structured output, do not return any other text, and ensure the output is valid JSON that matches the schema provided.
-"""
+These are the rules you MUST follow:
+- Every line that is not blank, a month, or a year should contain at least one event, but can contain multiple events
+- Lines that aren't blank or an event(s) will either be a month or a year, use these to determine the date of the event(s) directly below it, until a new month or year is provided
+- If there is no year provided, use this year: {current_year}
+- Event lines can contain a date, or a range of dates. If there is no date, assume the event date is the same as the event directly above it.
+- Event lines can contain a time, or a range of times. If there is no time, assume the event lasts the entire day
+- The date of the event is a number, usually at the start of the line, but can be anywhere in the line
+- The date of the event can be a single day or multiple days
+- The time of the event time can be anywhere in the line
+- The time of the event can be in any of these formats: `12:50`, `6:30`, `9am` `820`, `130`, `8`, `10-12`, `10:30-12:30`, `9am-11am`, `9-11`, `9-11am`, `9am-11` or anything similar
+- If there is no time, assume the event lasts the entire day, i.e., the start time is 00:00 and the end time is 23:59
+- If the event spans multiple days, and only contains a start time assume the event starts at that time on the first day and ends at 23:59 on the last day
+- If the event is a single day, and only contains a start time, assume the event starts at that time and ends one hour later
+- The summary of the event is the entire line
+- The summary of the event should not contain any date and time information
+- If the summary contains `cancelled` or anything similar, set the cancelled flag to true, otherwise set it to false"""
 
 @dataclass
 class AgentDependencies:
