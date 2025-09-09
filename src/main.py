@@ -1,30 +1,33 @@
+import asyncio
 import os
 
 from sqlalchemy import inspect
 
 from src import db_file, logger
 from src.events.caldav import add_to_caldav
-from src.model.event import Event
-from src.util import text
 from src.mail import mail
 from src.db import Base, engine, SessionLocal
 from src.model.email import EMail
+from src.model.event import Event
+from src.util.ai import parse_email
+from src.util.env import get_settings
 
 
-def main():
+async def main():
     logger.info("Starting email retrieval process")
+    settings = get_settings()
 
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
-    imap_host = os.environ["IMAP_HOST"]
-    imap_port = int(os.environ["IMAP_PORT"])
-    imap_username = os.environ["IMAP_USERNAME"]
-    imap_password = os.environ["IMAP_PASSWORD"]
+    imap_host = settings.IMAP_HOST
+    imap_port = settings.IMAP_PORT
+    imap_username = settings.IMAP_USERNAME
+    imap_password = settings.IMAP_PASSWORD
 
-    from_email = os.environ["FILTER_FROM_EMAIL"]
-    subject = os.environ["FILTER_SUBJECT"]
-    backfill: bool = os.environ.get("BACKFILL", "false").lower() == "true"
+    from_email = settings.FILTER_FROM_EMAIL
+    subject = settings.FILTER_SUBJECT
+    backfill = settings.BACKFILL
 
     db_path = os.path.join(os.path.dirname(__file__), db_file)
     db_exists = os.path.exists(db_path)
@@ -68,26 +71,25 @@ def main():
             email.save()
 
         if backfill:
+            events = []
             for email in EMail.get_all():
-                events: list[Event] = text.parse_email_events(email)
-                for event_obj in events:
-                    event_obj.save()
+                events.append(await parse_email(email))
             logger.info("Backfilled events from all emails")
         else:
             most_recent_email = EMail.get_most_recent()
-            events: list[Event] = text.parse_email_events(most_recent_email)
-            for event_obj in events:
-                event_obj.save()
+            logger.info("Parsing most recent email with id %s", most_recent_email.id)
+            for event in await parse_email(most_recent_email):
+                print(event)
             logger.info(
                 "Parsed and saved events from most recent email with date %s",
                 most_recent_email.delivery_date,
             )
         events = Event.get_all()
 
-        caldav_url = os.environ["CALDAV_URL"]
-        caldav_username = os.environ["CALDAV_USERNAME"]
-        caldav_password = os.environ["CALDAV_PASSWORD"]
-        calendar_name = os.environ["CALDAV_CALENDAR"]
+        caldav_url = settings.CALDAV_URL
+        caldav_username = settings.CALDAV_USERNAME
+        caldav_password = settings.IMAP_PASSWORD
+        calendar_name = settings.CALDAV_CALENDAR
 
         add_to_caldav(
             caldav_url, caldav_username, caldav_password, calendar_name, events
@@ -101,4 +103,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

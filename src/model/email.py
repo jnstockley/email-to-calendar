@@ -4,6 +4,7 @@ import enum
 import tzlocal
 from sqlalchemy import Column, Integer, String, DateTime, Enum
 from sqlalchemy.orm import relationship
+from src.model.event import Event
 
 from src.db import Base, SessionLocal
 
@@ -25,7 +26,7 @@ class EMail(Base):
     )
     email_type = Column(Enum(EMailType), nullable=False)
 
-    events = relationship("Event", back_populates="email", cascade="all, delete-orphan")
+    events = relationship(Event, back_populates="email", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<EMail(id={self.id}, subject={self.subject}, from_address={self.from_address}, delivery_date={self.delivery_date})>"
