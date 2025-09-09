@@ -1,4 +1,6 @@
 from caldav import DAVClient, Calendar
+from pydantic import AnyUrl
+
 from src import logger
 
 from src.model.event import Event
@@ -9,7 +11,7 @@ def authenticate_caldav(url: str, username: str, password: str) -> DAVClient:
 
 
 def add_to_caldav(
-    url: str, username: str, password: str, calendar_name: str, events: list[Event]
+    url: AnyUrl, username: str, password: str, calendar_name: str, events: list[Event]
 ):
     with authenticate_caldav(url, username, password) as client:
         principal = client.principal()
