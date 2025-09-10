@@ -2,11 +2,12 @@ import asyncio
 import os
 
 from sqlalchemy import inspect
+from sqlmodel import SQLModel
 
 from src import db_file, logger
 from src.events.caldav import add_to_caldav
 from src.mail import mail
-from src.db import Base, engine, SessionLocal
+from src.db import Session, engine
 from src.model.email import EMail
 from src.model.event import Event
 from src.util.ai import parse_email
@@ -18,7 +19,7 @@ async def main():
     settings = get_settings()
 
     # Create tables if they don't exist
-    Base.metadata.create_all(bind=engine)
+    SQLModel.metadata.create_all(engine)
 
     imap_host = settings.IMAP_HOST
     imap_port = settings.IMAP_PORT
@@ -32,11 +33,11 @@ async def main():
     db_path = os.path.join(os.path.dirname(__file__), db_file)
     db_exists = os.path.exists(db_path)
     inspector = inspect(engine)
-    table_exists = inspector.has_table("emails")
+    table_exists = inspector.has_table("email")
     has_record = False
     if db_exists and table_exists:
         logger.info("Database and table exist, checking for records")
-        session = SessionLocal()
+        session = Session(engine)
         try:
             has_record = len(EMail.get_all()) > 0
         finally:
@@ -91,9 +92,9 @@ async def main():
         caldav_password = settings.IMAP_PASSWORD
         calendar_name = settings.CALDAV_CALENDAR
 
-        add_to_caldav(
+        '''add_to_caldav(
             caldav_url, caldav_username, caldav_password, calendar_name, events
-        )
+        )'''
 
     except Exception as e:
         logger.error("An error occurred while retrieving emails: %s", e)

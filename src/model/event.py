@@ -1,32 +1,23 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Boolean,
     UniqueConstraint,
-    ForeignKey,
 )
-from sqlalchemy.orm import relationship
+from sqlmodel import SQLModel, Field, select
 
-from src.db import Base, SessionLocal
+from src.db import Session, engine
 
 
-class Event(Base):
-    __tablename__ = "events"
+class Event(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("start", "end", "summary", name="uq_event_start_end_summary"),
     )
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    start = Column(DateTime, nullable=False)
-    end = Column(DateTime, nullable=False)
-    summary = Column(String, nullable=False)
-    email_id = Column(Integer, ForeignKey("emails.id"), nullable=True, index=True)
-    in_calendar = Column(Boolean, nullable=False, default=False)
-
-    email = relationship("EMail", back_populates="events")
+    id: int = Field(primary_key=True)
+    start: datetime = Field(nullable=False)
+    end: datetime = Field(nullable=False)
+    summary: str = Field(nullable=False)
+    email_id: int = Field(foreign_key="email.id", nullable=True)
+    in_calendar: bool = Field(nullable=False, default=False)
 
     def __repr__(self):
         return f"<Event(id={self.id}, start={self.start}, end={self.end}, summary={self.summary})>"
@@ -35,14 +26,16 @@ class Event(Base):
         return f"Event(id={self.id}, start={self.start}, end={self.end}, summary={self.summary})"
 
     def save(self):
-        session = SessionLocal()
+        session = Session(engine)
         try:
             # First check for exact duplicates (same start, end, and summary)
-            existing_exact = (
-                session.query(Event)
-                .filter_by(start=self.start, end=self.end, summary=self.summary)
-                .one_or_none()
-            )
+            existing_exact = session.exec(
+                select(Event).where(
+                    Event.start == self.start,
+                    Event.end == self.end,
+                    Event.summary == self.summary,
+                )
+            ).first()
             if existing_exact:
                 # Preserve email linkage if existing record has it but new instance doesn't
                 if self.email_id is None and existing_exact.email_id is not None:
@@ -61,17 +54,16 @@ class Event(Base):
                 )  # Import here to avoid circular import
 
                 # Get all events with the same summary
-                existing_events_with_same_summary = (
-                    session.query(Event)
-                    .filter_by(summary=self.summary)
-                    .filter(Event.email_id.isnot(None))
-                    .all()
-                )
+                existing_events_with_same_summary = session.exec(
+                    select(Event).where(
+                        Event.summary == self.summary,
+                    )
+                ).all()
 
                 if existing_events_with_same_summary:
                     # Get the current email's delivery date
                     current_email = (
-                        session.query(EMail).filter_by(id=self.email_id).first()
+                        session.exec(select(Event).where(Event.id==self.id)).first()
                     )
                     if current_email:
                         current_delivery_date = current_email.delivery_date
@@ -80,10 +72,7 @@ class Event(Base):
                         events_to_remove = []
                         for existing_event in existing_events_with_same_summary:
                             existing_email = (
-                                session.query(EMail)
-                                .filter_by(id=existing_event.email_id)
-                                .first()
-                            )
+                                session.exec(select(EMail).where(EMail.id == existing_event.email_id)).first())
                             if (
                                 existing_email
                                 and existing_email.delivery_date < current_delivery_date
@@ -99,10 +88,7 @@ class Event(Base):
                         for existing_event in existing_events_with_same_summary:
                             if existing_event not in events_to_remove:
                                 existing_email = (
-                                    session.query(EMail)
-                                    .filter_by(id=existing_event.email_id)
-                                    .first()
-                                )
+                                    session.exec(select(EMail).where(EMail.id==existing_event.email_id)).first())
                                 if (
                                     existing_email
                                     and existing_email.delivery_date
@@ -132,22 +118,22 @@ class Event(Base):
             session.close()
 
     def get(self):
-        session = SessionLocal()
+        session = Session(engine)
         try:
-            return session.query(Event).filter(Event.id == self.id).first()
+            return session.exec(select(Event).where(Event.id==self.id)).first()
         finally:
             session.close()
 
     def delete(self):
-        session = SessionLocal()
+        session = Session(engine)
         try:
-            session.query(Event).filter(Event.id == self.id).delete()
+            session.delete(Event.where(Event.id==self.id))
             session.commit()
         finally:
             session.close()
 
     def save_to_caldav(self):
-        session = SessionLocal()
+        session = Session(engine)
         try:
             self.in_calendar = True
             session.merge(self)
@@ -157,28 +143,25 @@ class Event(Base):
 
     @staticmethod
     def get_by_id(event_id: int):
-        session = SessionLocal()
+        session = Session(engine)
         try:
-            return session.query(Event).filter(Event.id == event_id).first()
+            return session.exec(select(Event).where(Event.id == event_id)).first()
         finally:
             session.close()
 
     @staticmethod
     def get_all():
-        session = SessionLocal()
+        session = Session(engine)
         try:
-            return session.query(Event).all()
+            return session.exec(select(Event)).all()
         finally:
             session.close()
 
     @staticmethod
     def get_by_date(date: datetime):
-        session = SessionLocal()
+        session = Session(engine)
         try:
             return (
-                session.query(Event)
-                .filter(Event.start == date or Event.end == date)
-                .all()
-            )
+                session.exec(select(Event).where(Event.start == date or Event.end == date)).all())
         finally:
             session.close()
