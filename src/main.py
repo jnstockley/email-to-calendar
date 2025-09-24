@@ -72,15 +72,17 @@ async def main():
             email.save()
 
         if backfill:
-            events = []
-            for email in EMail.get_all():
-                events.append(await parse_email(email))
+            for email in EMail.get_without_events():
+                for event in await parse_email(email):
+                    logger.info(f"Backfilling event: {event}")
+                    event.save()
             logger.info("Backfilled events from all emails")
         else:
-            most_recent_email = EMail.get_most_recent()
+            most_recent_email = EMail.get_most_recent_without_events()
             logger.info("Parsing most recent email with id %s", most_recent_email.id)
             for event in await parse_email(most_recent_email):
-                print(event)
+                logger.info(f"Saving event: {event}")
+                event.save()
             logger.info(
                 "Parsed and saved events from most recent email with date %s",
                 most_recent_email.delivery_date,
@@ -92,9 +94,9 @@ async def main():
         caldav_password = settings.IMAP_PASSWORD
         calendar_name = settings.CALDAV_CALENDAR
 
-        '''add_to_caldav(
+        add_to_caldav(
             caldav_url, caldav_username, caldav_password, calendar_name, events
-        )'''
+        )
 
     except Exception as e:
         logger.error("An error occurred while retrieving emails: %s", e)

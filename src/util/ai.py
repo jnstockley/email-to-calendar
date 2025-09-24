@@ -26,6 +26,7 @@ These are the rules you MUST follow:
 - If there is no time, assume the event lasts the entire day, i.e., the start time is 00:00 and the end time is 23:59
 - If the event spans multiple days, and only contains a start time assume the event starts at that time on the first day and ends at 23:59 on the last day
 - If the event is a single day, and only contains a start time, assume the event starts at that time and ends one hour later
+- The start and end date and time of the event should be in ISO 8601 format, e.g., `2023-10-15T14:30:00` or `2023-10-15T00:00:00` if the event lasts the entire day
 - The summary of the event is the entire line
 - The summary of the event should not contain any date and time information
 - If the summary contains `cancelled` or anything similar, set the cancelled flag to true, otherwise set it to false
@@ -72,6 +73,10 @@ async def parse_email(email: EMail, model: str = "gpt-oss:20b", ollama_url: str 
     @agent.system_prompt
     async def get_current_year(ctx: RunContext[AgentDependencies]):
         return f"If there is no year provided, use this year: {ctx.deps.email.delivery_date.year}"
+
+    @agent.system_prompt
+    async def get_email_id(ctx: RunContext[AgentDependencies]):
+        return f"The email ID is {ctx.deps.email.id}. Use this ID for the email_id attribute of the event(s)."
 
     @agent.system_prompt
     async def get_events(ctx: RunContext[AgentDependencies]):

@@ -5,6 +5,7 @@ import tzlocal
 from sqlmodel import SQLModel, Field, select
 
 from src.db import Session, engine
+from src.model.event import Event
 
 
 class EMailType(enum.Enum):
@@ -82,5 +83,27 @@ class EMail(SQLModel, table=True):
         session = Session(engine)
         try:
             return session.exec(select(EMail).order_by(EMail.delivery_date.desc())).first()
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_most_recent_without_events():
+        session = Session(engine)
+        try:
+            return session.exec(select(EMail).where(~select(Event).where(Event.email_id == EMail.id).exists()).order_by(EMail.delivery_date.desc())).first()
+        finally:
+            session.close()
+
+    @staticmethod
+    def get_without_events():
+        session = Session(engine)
+        try:
+            # Use NOT EXISTS to find emails with no events referencing them
+            result = session.exec(
+                select(EMail).where(
+                    ~select(Event).where(Event.email_id == EMail.id).exists()
+                )
+            ).all()
+            return result
         finally:
             session.close()

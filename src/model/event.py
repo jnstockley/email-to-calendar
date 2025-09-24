@@ -13,8 +13,8 @@ class Event(SQLModel, table=True):
         UniqueConstraint("start", "end", "summary", name="uq_event_start_end_summary"),
     )
     id: int = Field(primary_key=True)
-    start: datetime = Field(nullable=False)
-    end: datetime = Field(nullable=False)
+    start: datetime = Field(nullable=False, description="The start date and time of the event, must be a Python datetime object, cannot be None")
+    end: datetime = Field(nullable=False, description="The end date and time of the event, must be a Python datetime object, cannot be None")
     summary: str = Field(nullable=False)
     email_id: int = Field(foreign_key="email.id", nullable=True)
     in_calendar: bool = Field(nullable=False, default=False)
@@ -28,92 +28,27 @@ class Event(SQLModel, table=True):
     def save(self):
         session = Session(engine)
         try:
-            # First check for exact duplicates (same start, end, and summary)
-            existing_exact = session.exec(
-                select(Event).where(
-                    Event.start == self.start,
-                    Event.end == self.end,
-                    Event.summary == self.summary,
-                )
-            ).first()
-            if existing_exact:
-                # Preserve email linkage if existing record has it but new instance doesn't
-                if self.email_id is None and existing_exact.email_id is not None:
-                    self.email_id = existing_exact.email_id
-                self.id = (
-                    existing_exact.id
-                )  # Update the ID to match the existing record
-                session.merge(self)
-                session.commit()
-                return
-
-            # Check for events with the same summary but different start/end times
-            if self.email_id is not None:
-                from src.model.email import (
-                    EMail,
-                )  # Import here to avoid circular import
-
-                # Get all events with the same summary
-                existing_events_with_same_summary = session.exec(
-                    select(Event).where(
-                        Event.summary == self.summary,
-                    )
-                ).all()
-
-                if existing_events_with_same_summary:
-                    # Get the current email's delivery date
-                    current_email = (
-                        session.exec(select(Event).where(Event.id==self.id)).first()
-                    )
-                    if current_email:
-                        current_delivery_date = current_email.delivery_date
-
-                        # Check if any existing events are from older emails
-                        events_to_remove = []
-                        for existing_event in existing_events_with_same_summary:
-                            existing_email = (
-                                session.exec(select(EMail).where(EMail.id == existing_event.email_id)).first())
-                            if (
-                                existing_email
-                                and existing_email.delivery_date < current_delivery_date
-                            ):
-                                events_to_remove.append(existing_event)
-
-                        # Remove older events with the same summary
-                        for event_to_remove in events_to_remove:
-                            session.delete(event_to_remove)
-
-                        # Also check if there are newer events with the same summary
-                        has_newer_event = False
-                        for existing_event in existing_events_with_same_summary:
-                            if existing_event not in events_to_remove:
-                                existing_email = (
-                                    session.exec(select(EMail).where(EMail.id==existing_event.email_id)).first())
-                                if (
-                                    existing_email
-                                    and existing_email.delivery_date
-                                    > current_delivery_date
-                                ):
-                                    has_newer_event = True
-                                    break
-
-                        # Only save the current event if there are no newer events with the same summary
-                        if not has_newer_event:
-                            session.merge(self)
-                            session.commit()
-                        # If there is a newer event, don't save the current event
-                    else:
-                        # If we can't get the email, proceed with normal save
-                        session.merge(self)
-                        session.commit()
+            if isinstance(self.start, str):
+                self.start = datetime.fromisoformat(self.start)
+            if isinstance(self.end, str):
+                self.end = datetime.fromisoformat(self.end)
+            if self.id is not None:
+                # Update existing event
+                existing_event = session.exec(select(Event).where(Event.id == self.id)).first()
+                if existing_event:
+                    existing_event.start = self.start
+                    existing_event.end = self.end
+                    existing_event.summary = self.summary
+                    existing_event.email_id = self.email_id
+                    existing_event.in_calendar = self.in_calendar
+                    session.add(existing_event)
                 else:
-                    # No existing events with same summary, proceed with normal save
-                    session.merge(self)
-                    session.commit()
+                    # If id is set but not found, treat as new
+                    session.add(self)
             else:
-                # No email_id, proceed with normal save
-                session.merge(self)
-                session.commit()
+                session.add(self)
+            session.commit()
+            session.flush()
         finally:
             session.close()
 
