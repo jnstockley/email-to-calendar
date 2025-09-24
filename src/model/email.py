@@ -90,7 +90,13 @@ class EMail(SQLModel, table=True):
     def get_most_recent_without_events():
         session = Session(engine)
         try:
-            return session.exec(select(EMail).where(~select(Event).where(Event.email_id == EMail.id).exists()).order_by(EMail.delivery_date.desc())).first()
+            email: EMail = session.exec(select(EMail).order_by(EMail.delivery_date.desc())).first()
+            # Check if this email has any associated events
+            if email:
+                event = session.exec(select(Event).where(Event.email_id == email.id)).first()
+                if event:
+                    return None  # The most recent email has associated events
+            return email
         finally:
             session.close()
 

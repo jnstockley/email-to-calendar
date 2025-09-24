@@ -9,6 +9,7 @@ the content, using regex, and automatically create calendar events in an iCal ac
   - [X] If using most recent, when new email arrives, remove events not present, and add new ones
 - [ ] If new email comes in with updated events, update event in calendar instead of creating a new one
 - [ ] Using email summary check for words like `Cancelled`, etc. to delete events
+- [ ] If event already exists, check if details have changed, and update if necessary
 
 
 ## Environment Variables

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     )
     FILTER_SUBJECT: Optional[str] = Field(None, description="Subject filter (optional)")
     BACKFILL: bool = Field(False, description="Whether to backfill all emails")
+    INTERVAL_MINUTES: int = Field(15, ge=1, description="Interval in minutes to check for new emails")
 
     CALDAV_URL: AnyUrl = Field(..., description="CalDAV server URL")
     CALDAV_USERNAME: str = Field(..., description="CalDAV username")

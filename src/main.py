@@ -1,5 +1,7 @@
 import asyncio
+import datetime
 import os
+import time
 
 from sqlalchemy import inspect
 from sqlmodel import SQLModel
@@ -11,10 +13,46 @@ from src.db import Session, engine
 from src.model.email import EMail
 from src.model.event import Event
 from src.util.ai import parse_email
-from src.util.env import get_settings
+from src.util.env import get_settings, Settings
 
 
-async def main():
+async def populate_events(settings: Settings):
+    backfill = settings.BACKFILL
+
+    if backfill:
+        logger.info("Backfilling events from all emails without events")
+        for email in EMail.get_without_events():
+            for event in await parse_email(email):
+                logger.debug(f"Backfilling event: {event}")
+                event.save()
+        logger.info("Backfilled events from all emails")
+    else:
+        most_recent_email = EMail.get_most_recent_without_events()
+        if most_recent_email:
+            logger.info("Parsing most recent email with id %s", most_recent_email.id)
+            for event in await parse_email(most_recent_email):
+                logger.debug(f"Saving event: {event}")
+                event.save()
+            logger.info(
+                "Parsed and saved events from most recent email with date %s",
+                most_recent_email.delivery_date,
+            )
+        else:
+            logger.info("No new emails without events to parse")
+
+    events = Event.get_not_in_calendar()
+
+    caldav_url = settings.CALDAV_URL
+    caldav_username = settings.CALDAV_USERNAME
+    caldav_password = settings.CALDAV_PASSWORD
+    calendar_name = settings.CALDAV_CALENDAR
+
+    add_to_caldav(
+        caldav_url, caldav_username, caldav_password, calendar_name, events
+    )
+
+
+def main():
     logger.info("Starting email retrieval process")
     settings = get_settings()
 
@@ -28,7 +66,6 @@ async def main():
 
     from_email = settings.FILTER_FROM_EMAIL
     subject = settings.FILTER_SUBJECT
-    backfill = settings.BACKFILL
 
     db_path = os.path.join(os.path.dirname(__file__), db_file)
     db_exists = os.path.exists(db_path)
@@ -71,32 +108,23 @@ async def main():
         for email in emails:
             email.save()
 
-        if backfill:
-            for email in EMail.get_without_events():
-                for event in await parse_email(email):
-                    logger.info(f"Backfilling event: {event}")
-                    event.save()
-            logger.info("Backfilled events from all emails")
-        else:
-            most_recent_email = EMail.get_most_recent_without_events()
-            logger.info("Parsing most recent email with id %s", most_recent_email.id)
-            for event in await parse_email(most_recent_email):
-                logger.info(f"Saving event: {event}")
-                event.save()
-            logger.info(
-                "Parsed and saved events from most recent email with date %s",
-                most_recent_email.delivery_date,
-            )
-        events = Event.get_all()
-
-        caldav_url = settings.CALDAV_URL
-        caldav_username = settings.CALDAV_USERNAME
-        caldav_password = settings.IMAP_PASSWORD
-        calendar_name = settings.CALDAV_CALENDAR
-
-        add_to_caldav(
-            caldav_url, caldav_username, caldav_password, calendar_name, events
-        )
+        while True:
+            logger.info("Starting event population process...")
+            start_time = datetime.datetime.now()
+            try:
+                asyncio.run(populate_events(settings))
+            except Exception as e:
+                logger.error("Error populating events: %s", e, e)
+            finally:
+                end_time = datetime.datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                logger.info(
+                    "Event population process completed in %.2f seconds", duration
+                )
+                sleep_duration = settings.INTERVAL_MINUTES * 60
+                remaining_time = max(0, sleep_duration - int(duration))
+                logger.info("Sleeping for %d seconds", remaining_time)
+                time.sleep(remaining_time)
 
     except Exception as e:
         logger.error("An error occurred while retrieving emails: %s", e)
@@ -106,4 +134,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

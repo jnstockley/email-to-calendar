@@ -100,3 +100,11 @@ class Event(SQLModel, table=True):
                 session.exec(select(Event).where(Event.start == date or Event.end == date)).all())
         finally:
             session.close()
+
+    @staticmethod
+    def get_not_in_calendar():
+        session = Session(engine)
+        try:
+            return session.exec(select(Event).where(Event.in_calendar == False)).all()
+        finally:
+            session.close()
