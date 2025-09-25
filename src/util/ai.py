@@ -24,6 +24,7 @@ These are the rules you MUST follow:
 - The time of the event time can be anywhere in the line
 - The time of the event can be in any of these formats: `12:50`, `6:30`, `9am` `820`, `130`, `8`, `10-12`, `10:30-12:30`, `9am-11am`, `9-11`, `9-11am`, `9am-11` or anything similar
 - If there is no time, assume the event lasts the entire day, i.e., the start time is 00:00 and the end time is 23:59
+- If there is no time or the event has a start time of `12:00am` or `00:00` and an end time of `11:59pm` or `23:59`, assume the event lasts the entire day, and set the `all_day` flag to true
 - If the event spans multiple days, and only contains a start time assume the event starts at that time on the first day and ends at 23:59 on the last day
 - If the event is a single day, and only contains a start time, assume the event starts at that time and ends one hour later
 - The start and end date and time of the event should be in ISO 8601 format, e.g., `2023-10-15T14:30:00` or `2023-10-15T00:00:00` if the event lasts the entire day

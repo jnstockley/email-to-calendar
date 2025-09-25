@@ -32,6 +32,9 @@ def add_to_caldav(
                 logger.info(
                     f"Adding event {event.summary} to CalDAV calendar '{calendar_name}'"
                 )
+                if event.all_day:
+                    event.start = event.start.date()
+                    event.end = event.end.date()
                 calendar.add_event(
                     dtstart=event.start, dtend=event.end, summary=event.summary
                 )

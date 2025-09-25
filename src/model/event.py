@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy import (
     UniqueConstraint,
@@ -15,6 +15,7 @@ class Event(SQLModel, table=True):
     id: int = Field(primary_key=True)
     start: datetime = Field(nullable=False, description="The start date and time of the event, must be a Python datetime object, cannot be None")
     end: datetime = Field(nullable=False, description="The end date and time of the event, must be a Python datetime object, cannot be None")
+    all_day: bool = Field(nullable=False, default=False, description="Whether the event lasts all day or not")
     summary: str = Field(nullable=False)
     email_id: int = Field(foreign_key="email.id", nullable=True)
     in_calendar: bool = Field(nullable=False, default=False)

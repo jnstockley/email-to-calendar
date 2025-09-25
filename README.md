@@ -11,6 +11,7 @@ the content, using regex, and automatically create calendar events in an iCal ac
 - [ ] Using email summary check for words like `Cancelled`, etc. to delete events
 - [ ] If event already exists, check if details have changed, and update if necessary
 - [ ] Investigate IMAP IDLE (push instead of poll)
+- [X] Make sure all day events are handled correctly
 
 
 ## Environment Variables
