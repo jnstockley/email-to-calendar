@@ -7,7 +7,7 @@ requires-python = ">=3.13, <4.0"
 dependencies = [
     "caldav==2.0.1",
     "pydantic-ai==1.0.10",
-    "pydantic-settings==2.10.1",
+    "pydantic-settings==2.11.0",
     "pydantic[email]==2.11.9",
     "sqlmodel==0.0.25",
     "tzlocal==5.3.1",
