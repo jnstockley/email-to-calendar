@@ -19,7 +19,9 @@ class EMail(SQLModel, table=True):
     from_address: str = Field(nullable=False)
     delivery_date: datetime = Field(nullable=False)
     body: str = Field(nullable=False)
-    retrieved_date: datetime = Field(nullable=False, default=lambda: datetime.now(tzlocal.get_localzone()))
+    retrieved_date: datetime = Field(
+        nullable=False, default=lambda: datetime.now(tzlocal.get_localzone())
+    )
     email_type: EMailType = Field(nullable=False)
 
     def __repr__(self):
@@ -40,14 +42,14 @@ class EMail(SQLModel, table=True):
     def get(self):
         session = Session(engine)
         try:
-            return session.exec(select(EMail).where(EMail.id==self.id)).first()
+            return session.exec(select(EMail).where(EMail.id == self.id)).first()
         finally:
             session.close()
 
     def delete(self):
         session = Session(engine)
         try:
-            session.delete(EMail.where(EMail.id==self.id))
+            session.delete(EMail.where(EMail.id == self.id))
             session.commit()
         finally:
             session.close()
@@ -72,9 +74,9 @@ class EMail(SQLModel, table=True):
     def get_by_delivery_date(delivery_date: datetime):
         session = Session(engine)
         try:
-            return (
-                session.exec(select(EMail).where(EMail.delivery_date == delivery_date)).all()
-            )
+            return session.exec(
+                select(EMail).where(EMail.delivery_date == delivery_date)
+            ).all()
         finally:
             session.close()
 
@@ -82,7 +84,9 @@ class EMail(SQLModel, table=True):
     def get_most_recent():
         session = Session(engine)
         try:
-            return session.exec(select(EMail).order_by(EMail.delivery_date.desc())).first()
+            return session.exec(
+                select(EMail).order_by(EMail.delivery_date.desc())
+            ).first()
         finally:
             session.close()
 
@@ -90,10 +94,14 @@ class EMail(SQLModel, table=True):
     def get_most_recent_without_events():
         session = Session(engine)
         try:
-            email: EMail = session.exec(select(EMail).order_by(EMail.delivery_date.desc())).first()
+            email: EMail = session.exec(
+                select(EMail).order_by(EMail.delivery_date.desc())
+            ).first()
             # Check if this email has any associated events
             if email:
-                event = session.exec(select(Event).where(Event.email_id == email.id)).first()
+                event = session.exec(
+                    select(Event).where(Event.email_id == email.id)
+                ).first()
                 if event:
                     return None  # The most recent email has associated events
             return email

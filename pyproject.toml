@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
     "caldav==2.0.1",
+    "imapclient>=3.0.1",
     "pydantic-ai==1.0.10",
     "pydantic-settings==2.11.0",
     "pydantic[email]==2.11.9",
@@ -17,4 +18,5 @@ dependencies = [
 dev = [
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",
+    "ruff>=0.13.2",
 ]

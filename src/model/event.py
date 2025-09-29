@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime
 
 from sqlalchemy import (
     UniqueConstraint,
@@ -13,9 +13,19 @@ class Event(SQLModel, table=True):
         UniqueConstraint("start", "end", "summary", name="uq_event_start_end_summary"),
     )
     id: int = Field(primary_key=True)
-    start: datetime = Field(nullable=False, description="The start date and time of the event, must be a Python datetime object, cannot be None")
-    end: datetime = Field(nullable=False, description="The end date and time of the event, must be a Python datetime object, cannot be None")
-    all_day: bool = Field(nullable=False, default=False, description="Whether the event lasts all day or not")
+    start: datetime = Field(
+        nullable=False,
+        description="The start date and time of the event, must be a Python datetime object, cannot be None",
+    )
+    end: datetime = Field(
+        nullable=False,
+        description="The end date and time of the event, must be a Python datetime object, cannot be None",
+    )
+    all_day: bool = Field(
+        nullable=False,
+        default=False,
+        description="Whether the event lasts all day or not",
+    )
     summary: str = Field(nullable=False)
     email_id: int = Field(foreign_key="email.id", nullable=True)
     in_calendar: bool = Field(nullable=False, default=False)
@@ -35,7 +45,9 @@ class Event(SQLModel, table=True):
                 self.end = datetime.fromisoformat(self.end)
             if self.id is not None:
                 # Update existing event
-                existing_event = session.exec(select(Event).where(Event.id == self.id)).first()
+                existing_event = session.exec(
+                    select(Event).where(Event.id == self.id)
+                ).first()
                 if existing_event:
                     existing_event.start = self.start
                     existing_event.end = self.end
@@ -56,14 +68,14 @@ class Event(SQLModel, table=True):
     def get(self):
         session = Session(engine)
         try:
-            return session.exec(select(Event).where(Event.id==self.id)).first()
+            return session.exec(select(Event).where(Event.id == self.id)).first()
         finally:
             session.close()
 
     def delete(self):
         session = Session(engine)
         try:
-            session.delete(Event.where(Event.id==self.id))
+            session.delete(Event.where(Event.id == self.id))
             session.commit()
         finally:
             session.close()
@@ -97,8 +109,9 @@ class Event(SQLModel, table=True):
     def get_by_date(date: datetime):
         session = Session(engine)
         try:
-            return (
-                session.exec(select(Event).where(Event.start == date or Event.end == date)).all())
+            return session.exec(
+                select(Event).where(Event.start == date or Event.end == date)
+            ).all()
         finally:
             session.close()
 
@@ -106,6 +119,6 @@ class Event(SQLModel, table=True):
     def get_not_in_calendar():
         session = Session(engine)
         try:
-            return session.exec(select(Event).where(Event.in_calendar == False)).all()
+            return session.exec(select(Event).where(not Event.in_calendar)).all()
         finally:
             session.close()

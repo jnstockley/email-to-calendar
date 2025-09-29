@@ -7,7 +7,12 @@ from src.model.event import Event
 
 
 def authenticate_caldav(url: AnyUrl, username: str, password: str) -> DAVClient:
-    return DAVClient(url.encoded_string(), username=username, password=password, headers={"User-Agent": "email-to-calendar/1.0"})
+    return DAVClient(
+        url.encoded_string(),
+        username=username,
+        password=password,
+        headers={"User-Agent": "email-to-calendar/1.0"},
+    )
 
 
 def add_to_caldav(

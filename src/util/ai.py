@@ -12,6 +12,7 @@ from src import logger
 from src.db import Session, engine
 from src.model.email import EMail
 from src.model.event import Event
+from src.util.env import AIProvider, get_settings
 
 DEFAULT_SYSTEM_PROMPT = """You are a personal assistant who receives emails and needs to parse through the contents of the email to create calendar events.
 These are the rules you MUST follow:
@@ -33,42 +34,53 @@ These are the rules you MUST follow:
 - If the summary contains `cancelled` or anything similar, set the cancelled flag to true, otherwise set it to false
 - Check, using the summary, if the event is present in the database assign the id attribute to the id of the event in the database, otherwise set it to null"""
 
+
 @dataclass
 class AgentDependencies:
     email: EMail
-    max_result_retries: int = 3
+    max_result_retries: int = get_settings().AI_MAX_RETRIES
     db = Session(engine)
 
-'''class GenEvent(BaseModel):
-    id: int | None = Field(default=None, description="The unique identifier of the event, if it exists in the database")
-    summary: str = Field(description="The name of the event, not including any date or time information")
-    start_date: datetime = Field(description="The start date and time of the event, if no time is provided assume the event lasts the entire day")
-    end_date: datetime = Field(description="The end date and time of the event, if no time is provided assume the event lasts the entire day")
-    cancelled: bool = Field(description="Whether the event is cancelled or not")
-    email_id: int = Field(description="The ID of the email this event was created from")
-    in_calendar: bool = Field(default=False, description="Whether the event has been added to the calendar or not")
-
-    def __str__(self):
-        return f"Event(id={self.id}, start={self.start_date}, end={self.end_date}, summary={self.summary}, cancelled={self.cancelled}, email_id={self.email_id}, in_calendar={self.in_calendar})"'''
 
 class Events(BaseModel):
     events: list[Event] = Field(description="A list of events parsed from the email")
 
-async def parse_email(email: EMail, model: str = "gpt-oss:20b", ollama_url: str = "http://localhost", ollama_port: int = 11434, max_retries: int = 3):
-    logger.info(f"Creating events from email id {email.id}, using model: {model} at ollama host: {ollama_url}:{ollama_port}")
-    ollama = OpenAIChatModel(
-        model_name=model,
-        provider=OllamaProvider(base_url=f'{ollama_url}:{ollama_port}/v1'),
-    )
+
+async def parse_email(
+    email: EMail,
+    provider: AIProvider,
+    model: str = "gpt-oss:20b",
+    ollama_url: str = "http://localhost",
+    ollama_port: int = 11434,
+    max_retries: int = 3,
+    system_prompt: str = None,
+) -> list[Event]:
+    if provider == AIProvider.OLLAMA:
+        logger.info(
+            f"Creating events from email id {email.id}, using model: {model} at ollama host: {ollama_url}:{ollama_port}"
+        )
+        ai_model = OpenAIChatModel(
+            model_name=model,
+            provider=OllamaProvider(base_url=f"{ollama_url}:{ollama_port}/v1"),
+        )
+    elif provider == AIProvider.OPENAI:
+        logger.info(
+            f"Creating events from email id {email.id}, using OpenAI model: {model}"
+        )
+        ai_model = OpenAIChatModel(model_name=model)
+    else:
+        raise ValueError(f"Unsupported AI provider: {provider}")
 
     deps = AgentDependencies(email=email)
 
+    system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+
     agent = Agent(
-        ollama,
+        ai_model,
         deps_type=AgentDependencies,
         output_type=Events,
-        system_prompt=DEFAULT_SYSTEM_PROMPT,
-        retries=max_retries
+        system_prompt=system_prompt,
+        retries=max_retries,
     )
 
     @agent.system_prompt
@@ -101,5 +113,7 @@ async def parse_email(email: EMail, model: str = "gpt-oss:20b", ollama_url: str 
 
     end_time = datetime.now()
     elapsed = (end_time - start_time).total_seconds()
-    logger.info(f"Took {elapsed:.3f} seconds to generate {len(events.events)} events from email id: {email.id}")
+    logger.info(
+        f"Took {elapsed:.3f} seconds to generate {len(events.events)} events from email id: {email.id}"
+    )
     return events.events

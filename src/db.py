@@ -1,8 +1,10 @@
 from sqlmodel import create_engine, Session
 
-from src import db_file
+from src.util.env import get_settings
 
-DATABASE_URL = f"sqlite:///{db_file}"
+settings = get_settings()
+
+DATABASE_URL = f"sqlite:///{settings.DB_FILE}"
 
 engine = create_engine(DATABASE_URL)
 

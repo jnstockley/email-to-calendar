@@ -18,11 +18,25 @@ from src.util.env import get_settings, Settings
 
 async def populate_events(settings: Settings):
     backfill = settings.BACKFILL
+    provider = settings.AI_PROVIDER
+    model = settings.AI_MODEL
+    ollama_url = settings.OLLAMA_URL
+    ollama_port = settings.OLLAMA_PORT
+    max_retries = settings.AI_MAX_RETRIES
+    system_prompt = settings.AI_SYSTEM_PROMPT
 
     if backfill:
         logger.info("Backfilling events from all emails without events")
         for email in EMail.get_without_events():
-            for event in await parse_email(email):
+            for event in await parse_email(
+                email,
+                provider,
+                model,
+                ollama_url,
+                ollama_port,
+                max_retries,
+                system_prompt,
+            ):
                 logger.debug(f"Backfilling event: {event}")
                 event.save()
         logger.info("Backfilled events from all emails")
@@ -30,7 +44,15 @@ async def populate_events(settings: Settings):
         most_recent_email = EMail.get_most_recent_without_events()
         if most_recent_email:
             logger.info("Parsing most recent email with id %s", most_recent_email.id)
-            for event in await parse_email(most_recent_email):
+            for event in await parse_email(
+                most_recent_email,
+                provider,
+                model,
+                ollama_url,
+                ollama_port,
+                max_retries,
+                system_prompt,
+            ):
                 logger.debug(f"Saving event: {event}")
                 event.save()
             logger.info(
@@ -47,9 +69,7 @@ async def populate_events(settings: Settings):
     caldav_password = settings.CALDAV_PASSWORD
     calendar_name = settings.CALDAV_CALENDAR
 
-    add_to_caldav(
-        caldav_url, caldav_username, caldav_password, calendar_name, events
-    )
+    add_to_caldav(caldav_url, caldav_username, caldav_password, calendar_name, events)
 
 
 def main():
@@ -63,6 +83,8 @@ def main():
     imap_port = settings.IMAP_PORT
     imap_username = settings.IMAP_USERNAME
     imap_password = settings.IMAP_PASSWORD
+    mailbox = settings.IMAP_MAILBOX
+    ssl = settings.IMAP_SSL
 
     from_email = settings.FILTER_FROM_EMAIL
     subject = settings.FILTER_SUBJECT
@@ -80,7 +102,7 @@ def main():
         finally:
             session.close()
 
-    client = mail.authenticate(imap_host, imap_port, imap_username, imap_password)
+    client = mail.authenticate(imap_host, imap_port, imap_username, imap_password, ssl)
 
     try:
         if has_record:
@@ -96,6 +118,7 @@ def main():
                 from_email=from_email,
                 subject=subject,
                 since=most_recent_email.delivery_date,
+                mailbox=mailbox,
             )
         else:
             logger.info("No existing records found, retrieving all emails")

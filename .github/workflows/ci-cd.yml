@@ -38,7 +38,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y yamllint shellcheck shfmt
 
-      - name: Step 5 - Run Linters
+      - name: Step 5 - Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Step 6 - Install Packages
+        run: uv sync --frozen
+
+      - name: Step 7 - Run Linters
         run: ./scripts/lint.sh
 
   test:

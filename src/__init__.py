@@ -1,16 +1,19 @@
 import os
 import sys
 import logging
+from pathlib import Path
 
-if not os.path.isdir("../data"):
-    os.makedirs("../data")
+from src.util.env import get_settings
 
-db_file = os.environ.get("DB_FILE", "../data/emails.db")
+settings = get_settings()
 
-if not os.path.isdir("../logs"):
-    os.makedirs("../logs")
+db_file = Path(settings.DB_FILE)
 
-log_file = os.path.join(os.path.dirname(__file__), "../logs/emails.log")
+db_file.parent.mkdir(parents=True, exist_ok=True)
+
+log_file_path = Path(os.path.dirname(__file__), "../logs/emails.log")
+log_file_path.parent.mkdir(parents=True, exist_ok=True)
+log_file_path.touch(exist_ok=True)
 
 
 class StdoutFilter(logging.Filter):
@@ -43,7 +46,7 @@ stderr_handler.addFilter(StderrFilter())
 stderr_handler.setFormatter(logging.Formatter(log_format))
 
 # Handler for file (all levels)
-file_handler = logging.FileHandler(log_file)
+file_handler = logging.FileHandler(log_file_path)
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(logging.Formatter(log_format))
 
@@ -52,8 +55,3 @@ logger.handlers.clear()
 logger.addHandler(stdout_handler)
 logger.addHandler(stderr_handler)
 logger.addHandler(file_handler)
-
-# Usage: from src import logger
-# logger.info("Info message")
-# logger.warning("Warning message")
-# logger.error("Error message")
