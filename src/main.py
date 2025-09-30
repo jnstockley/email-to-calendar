@@ -31,7 +31,7 @@ async def populate_events(settings: Settings):
     if backfill:
         logger.info("Backfilling events from all emails without events")
         for email in EMail.get_without_events():
-            events =  await parse_email(
+            events = await parse_email(
                 email,
                 provider,
                 model,

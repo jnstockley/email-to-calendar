@@ -60,17 +60,21 @@ async def parse_email(
 ) -> list[Event]:
     if provider == AIProvider.OLLAMA:
         logger.info(
-            f"Creating events from email id {email.id}, using model: {model} at ollama host: {"https://" if ollama_secure else "http://"}{ollama_host}:{ollama_port}"
+            f"Creating events from email id {email.id}, using model: {model} at ollama host: {'https://' if ollama_secure else 'http://'}{ollama_host}:{ollama_port}"
         )
         ai_model = OpenAIChatModel(
             model_name=model,
-            provider=OllamaProvider(base_url=f"{"https://" if ollama_secure else "http://"}{ollama_host}:{ollama_port}/v1"),
+            provider=OllamaProvider(
+                base_url=f"{'https://' if ollama_secure else 'http://'}{ollama_host}:{ollama_port}/v1"
+            ),
         )
     elif provider == AIProvider.OPENAI:
         logger.info(
             f"Creating events from email id {email.id}, using OpenAI model: {model}"
         )
-        ai_model = OpenAIChatModel(model_name=model, provider=OpenAIProvider(api_key=open_ai_api_key))
+        ai_model = OpenAIChatModel(
+            model_name=model, provider=OpenAIProvider(api_key=open_ai_api_key)
+        )
     else:
         raise ValueError(f"Unsupported AI provider: {provider}")
 

@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     )
 
     OLLAMA_SECURE: bool = Field(
-        False, description="Whether to use HTTPS for Ollama connection")
+        False, description="Whether to use HTTPS for Ollama connection"
+    )
     OLLAMA_HOST: str = Field("localhost", description="Ollama base URL")
     OLLAMA_PORT: int = Field(11434, ge=1, le=65535, description="Ollama port")
 
