@@ -70,8 +70,13 @@ async def populate_events(settings: Settings):
     caldav_password = settings.CALDAV_PASSWORD
     calendar_name = settings.CALDAV_CALENDAR
 
-    add_to_caldav(caldav_url, caldav_username, caldav_password, calendar_name, events)
-    send_success_notification(settings.APPRISE_URL, events)
+    if events:
+        logger.info("Adding %d new events to CalDAV calendar", len(events))
+        add_to_caldav(
+            caldav_url, caldav_username, caldav_password, calendar_name, events
+        )
+        if settings.APPRISE_URL:
+            send_success_notification(settings.APPRISE_URL, events)
 
 
 def main():

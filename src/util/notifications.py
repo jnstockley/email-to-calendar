@@ -15,6 +15,6 @@ def send_success_notification(apprise_url: AnyUrl, events: list[Event]):
     # Then notify these services any time you desire. The below would
     # notify all the services loaded into our Apprise object.
     apobj.notify(
-        body=f'The following new events were added to your calendar: {events}',
-        title='New Events Added to Calendar',
+        body=f"The following new events were added to your calendar: {events}",
+        title="New Events Added to Calendar",
     )
