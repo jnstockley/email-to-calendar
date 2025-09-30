@@ -6,6 +6,6 @@ PYTHON_STARTER_BRANCH="main" # or the branch you want to merge
 
 # Pull changes from python starter repo into current git repo
 git remote add pythonStarter "$PYTHON_STARTER_URL"
-git fetch pythonStarter --depth=1
+git fetch pythonStarter
 git merge --allow-unrelated-histories --no-edit pythonStarter/"$PYTHON_STARTER_BRANCH"
 git remote remove pythonStarter
