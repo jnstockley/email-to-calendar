@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+IFS=$'\n\t'
 
 # Run Python linter
-uvx ruff check
-uvx ruff format --check
+ruff check
+ruff format --check
 
 # Run Shell linter, ignoring files in .gitignore
 git ls-files --cached --others --exclude-standard |
@@ -13,6 +14,7 @@ git ls-files --cached --others --exclude-standard |
     grep -E '\.sh$|\.bash$|\.ksh$|\.bashrc$|\.bash_profile$|\.bash_login$|\.bash_logout$' |
     xargs -r shfmt --diff -i 4 -ci
 
-# Run YAML linter
-yamllint -s .
-npx dclint -r --fix --max-warnings 0 ./
+# Run YAML linter only on YAML files not ignored by .gitignore
+git ls-files --cached --others --exclude-standard |
+    grep -E '\.ya?ml$' |
+    xargs -r yamllint -s

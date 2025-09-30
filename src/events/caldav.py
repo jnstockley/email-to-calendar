@@ -1,15 +1,22 @@
 from caldav import DAVClient, Calendar
+from pydantic import AnyUrl
+
 from src import logger
 
 from src.model.event import Event
 
 
-def authenticate_caldav(url: str, username: str, password: str) -> DAVClient:
-    return DAVClient(url, username=username, password=password)
+def authenticate_caldav(url: AnyUrl, username: str, password: str) -> DAVClient:
+    return DAVClient(
+        url.encoded_string(),
+        username=username,
+        password=password,
+        headers={"User-Agent": "email-to-calendar/1.0"},
+    )
 
 
 def add_to_caldav(
-    url: str, username: str, password: str, calendar_name: str, events: list[Event]
+    url: AnyUrl, username: str, password: str, calendar_name: str, events: list[Event]
 ):
     with authenticate_caldav(url, username, password) as client:
         principal = client.principal()
@@ -30,6 +37,9 @@ def add_to_caldav(
                 logger.info(
                     f"Adding event {event.summary} to CalDAV calendar '{calendar_name}'"
                 )
+                if event.all_day:
+                    event.start = event.start.date()
+                    event.end = event.end.date()
                 calendar.add_event(
                     dtstart=event.start, dtend=event.end, summary=event.summary
                 )
