@@ -31,7 +31,7 @@ async def populate_events(settings: Settings):
     if backfill:
         logger.info("Backfilling events from all emails without events")
         for email in EMail.get_without_events():
-            for event in await parse_email(
+            events =  await parse_email(
                 email,
                 provider,
                 model,
@@ -41,15 +41,22 @@ async def populate_events(settings: Settings):
                 open_ai_api_key,
                 max_retries,
                 system_prompt,
-            ):
+            )
+            for event in events:
                 logger.debug(f"Backfilling event: {event}")
-                event.save()
+                try:
+                    event.save()
+                except Exception as e:
+                    logger.error(f"Error saving event {event}: {e}", exc_info=True)
+                finally:
+                    for e in events:
+                        e.delete()
         logger.info("Backfilled events from all emails")
     else:
         most_recent_email = EMail.get_most_recent_without_events()
         if most_recent_email:
             logger.info("Parsing most recent email with id %s", most_recent_email.id)
-            for event in await parse_email(
+            events = await parse_email(
                 most_recent_email,
                 provider,
                 model,
@@ -59,9 +66,16 @@ async def populate_events(settings: Settings):
                 open_ai_api_key,
                 max_retries,
                 system_prompt,
-            ):
+            )
+            for event in events:
                 logger.debug(f"Saving event: {event}")
-                event.save()
+                try:
+                    event.save()
+                except Exception as e:
+                    logger.error(f"Error saving event {event}: {e}", exc_info=True)
+                finally:
+                    for e in events:
+                        e.delete()
             logger.info(
                 "Parsed and saved events from most recent email with date %s",
                 most_recent_email.delivery_date,
