@@ -14,6 +14,7 @@ from src.model.email import EMail
 from src.model.event import Event
 from src.util.ai import parse_email
 from src.util.env import get_settings, Settings
+from src.util.notifications import send_success_notification
 
 
 async def populate_events(settings: Settings):
@@ -70,6 +71,7 @@ async def populate_events(settings: Settings):
     calendar_name = settings.CALDAV_CALENDAR
 
     add_to_caldav(caldav_url, caldav_username, caldav_password, calendar_name, events)
+    send_success_notification(settings.APPRISE_URL, events)
 
 
 def main():

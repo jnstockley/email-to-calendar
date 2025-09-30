@@ -55,6 +55,10 @@ class Settings(BaseSettings):
 
     DB_FILE: str = Field("../data/emails.db", description="SQLite database file path")
 
+    APPRISE_URL: Optional[AnyUrl] = Field(
+        None, description="Apprise notification service URL (optional)"
+    )
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
