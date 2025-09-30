@@ -2,10 +2,14 @@
 
 # Set these variables
 PYTHON_STARTER_URL="https://github.com/jnstockley/python-starter.git"
-PYTHON_STARTER_BRANCH="main" # or the branch you want to merge
+PYTHON_STARTER_BRANCH="main"
+
+git remote add -f python-starter "$PYTHON_STARTER_URL"
+git merge python-starter/"$PYTHON_STARTER_BRANCH" --allow-unrelated-histories
+
 
 # Pull changes from python starter repo into current git repo
-git remote add pythonStarter "$PYTHON_STARTER_URL"
-git fetch pythonStarter
-git merge --allow-unrelated-histories --no-edit pythonStarter/"$PYTHON_STARTER_BRANCH"
-git remote remove pythonStarter
+#git remote add pythonStarter "$PYTHON_STARTER_URL"
+#git fetch pythonStarter
+#git merge --allow-unrelated-histories --no-edit pythonStarter/"$PYTHON_STARTER_BRANCH"
+#git remote remove pythonStarter
