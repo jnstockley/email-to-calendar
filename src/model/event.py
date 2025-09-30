@@ -119,6 +119,6 @@ class Event(SQLModel, table=True):
     def get_not_in_calendar():
         session = Session(engine)
         try:
-            return session.exec(select(Event).where(not Event.in_calendar)).all()
+            return session.exec(select(Event).where(Event.in_calendar == False)).all()
         finally:
             session.close()
