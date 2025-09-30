@@ -21,8 +21,10 @@ async def populate_events(settings: Settings):
     backfill = settings.BACKFILL
     provider = settings.AI_PROVIDER
     model = settings.AI_MODEL
-    ollama_url = settings.OLLAMA_URL
+    ollama_host = settings.OLLAMA_HOST
     ollama_port = settings.OLLAMA_PORT
+    ollama_secure = settings.OLLAMA_SECURE
+    open_ai_api_key = settings.OPEN_AI_API_KEY
     max_retries = settings.AI_MAX_RETRIES
     system_prompt = settings.AI_SYSTEM_PROMPT
 
@@ -33,8 +35,10 @@ async def populate_events(settings: Settings):
                 email,
                 provider,
                 model,
-                ollama_url,
+                ollama_host,
                 ollama_port,
+                ollama_secure,
+                open_ai_api_key,
                 max_retries,
                 system_prompt,
             ):
@@ -49,8 +53,10 @@ async def populate_events(settings: Settings):
                 most_recent_email,
                 provider,
                 model,
-                ollama_url,
+                ollama_host,
                 ollama_port,
+                ollama_secure,
+                open_ai_api_key,
                 max_retries,
                 system_prompt,
             ):

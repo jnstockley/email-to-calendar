@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from sqlmodel import select
 
 from src import logger
@@ -50,24 +51,26 @@ async def parse_email(
     email: EMail,
     provider: AIProvider,
     model: str = "gpt-oss:20b",
-    ollama_url: str = "http://localhost",
+    ollama_host: str = "localhost",
     ollama_port: int = 11434,
+    ollama_secure: bool = False,
+    open_ai_api_key: str = None,
     max_retries: int = 3,
     system_prompt: str = None,
 ) -> list[Event]:
     if provider == AIProvider.OLLAMA:
         logger.info(
-            f"Creating events from email id {email.id}, using model: {model} at ollama host: {ollama_url}:{ollama_port}"
+            f"Creating events from email id {email.id}, using model: {model} at ollama host: {"https://" if ollama_secure else "http://"}{ollama_host}:{ollama_port}"
         )
         ai_model = OpenAIChatModel(
             model_name=model,
-            provider=OllamaProvider(base_url=f"{ollama_url}:{ollama_port}/v1"),
+            provider=OllamaProvider(base_url=f"{"https://" if ollama_secure else "http://"}{ollama_host}:{ollama_port}/v1"),
         )
     elif provider == AIProvider.OPENAI:
         logger.info(
             f"Creating events from email id {email.id}, using OpenAI model: {model}"
         )
-        ai_model = OpenAIChatModel(model_name=model)
+        ai_model = OpenAIChatModel(model_name=model, provider=OpenAIProvider(api_key=open_ai_api_key))
     else:
         raise ValueError(f"Unsupported AI provider: {provider}")
 

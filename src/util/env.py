@@ -41,15 +41,22 @@ class Settings(BaseSettings):
         default=None, description="AI provider to use (ollama, openai, none)"
     )
 
-    OLLAMA_HOST: str = Field("http://localhost", description="Ollama base URL")
+    OLLAMA_SECURE: bool = Field(
+        False, description="Whether to use HTTPS for Ollama connection")
+    OLLAMA_HOST: str = Field("localhost", description="Ollama base URL")
     OLLAMA_PORT: int = Field(11434, ge=1, le=65535, description="Ollama port")
+
+    OPEN_AI_API_KEY: Optional[str] = Field(
+        None, description="OpenAI API key (required if AI_PROVIDER is openai)"
+    )
+
     AI_MODEL: str = Field(default=None, description="Model to use for parsing")
     AI_MAX_RETRIES: int = Field(3, ge=0, description="Maximum retries for AI parsing")
 
-    SYSTEM_PROMPT: Optional[str] = Field(
+    AI_SYSTEM_PROMPT: Optional[str] = Field(
         None, description="Custom system prompt for the AI model (optional)"
     )
-    SYSTEM_PROMPT_FILE: Optional[str] = Field(
+    AI_SYSTEM_PROMPT_FILE: Optional[str] = Field(
         None, description="Custom system prompt for the AI model (optional)"
     )
 
@@ -70,12 +77,15 @@ def get_settings() -> Settings:
         settings = Settings()
         if settings.AI_PROVIDER == AIProvider.OLLAMA and not settings.AI_MODEL:
             settings.AI_MODEL = "gpt-oss:20b"
+            assert settings.OLLAMA_HOST is not None
+            assert settings.OLLAMA_PORT is not None
         elif settings.AI_PROVIDER == AIProvider.OPENAI and not settings.AI_MODEL:
-            settings.AI_MODEL = "gpt-3.5-turbo"
+            settings.AI_MODEL = "gpt-5-mini"
+            assert settings.OPEN_AI_API_KEY is not None
 
-        if settings.SYSTEM_PROMPT_FILE:
+        if settings.AI_SYSTEM_PROMPT_FILE:
             try:
-                with open(settings.SYSTEM_PROMPT_FILE, "r") as f:
+                with open(settings.AI_SYSTEM_PROMPT_FILE, "r") as f:
                     settings.AI_SYSTEM_PROMPT = f.read()
             except Exception as e:
                 raise ValueError(f"Error reading system prompt file: {e}")
