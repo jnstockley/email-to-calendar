@@ -48,7 +48,6 @@ async def populate_events(settings: Settings):
                     event.save()
                 except Exception as e:
                     logger.error(f"Error saving event {event}: {e}", exc_info=True)
-                finally:
                     for e in events:
                         e.delete()
         logger.info("Backfilled events from all emails")
@@ -73,7 +72,6 @@ async def populate_events(settings: Settings):
                     event.save()
                 except Exception as e:
                     logger.error(f"Error saving event {event}: {e}", exc_info=True)
-                finally:
                     for e in events:
                         e.delete()
             logger.info(
