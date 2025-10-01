@@ -10,10 +10,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Pull image
+        run: docker pull jnstockley/email-to-calendar:latest
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: 'docker.io/jnstockley/email-to-calendar:latest'
+          image-ref: 'jnstockley/email-to-calendar:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
 
