@@ -292,7 +292,7 @@ jobs:
             org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
 
       - name: Step 12 - Update Docker Description and README
-        uses: peter-evans/dockerhub-description@v4.0.2
+        uses: peter-evans/dockerhub-description@v5.0.0
         if: github.event_name == 'release'
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
