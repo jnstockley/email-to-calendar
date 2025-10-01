@@ -1,0 +1,42 @@
+{
+  "id": 4070155,
+  "name": "Main Branch Protection",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "jnstockley/python-starter",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Lint",
+            "integration_id": 15368
+          },
+          {
+            "context": "Test",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}
