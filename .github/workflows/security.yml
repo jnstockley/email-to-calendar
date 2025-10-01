@@ -1,3 +1,4 @@
+---
 name: Trivy Security Scan
 on:
   workflow_dispatch:
