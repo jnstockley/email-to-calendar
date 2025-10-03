@@ -6,4 +6,4 @@ PYTHON_STARTER_BRANCH="main"
 
 git remote add -f python-starter "$PYTHON_STARTER_URL"
 git merge python-starter/"$PYTHON_STARTER_BRANCH" --allow-unrelated-histories
-git remove python-starter
+git remote remove python-starter
