@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 from enum import Enum
 
@@ -61,7 +62,7 @@ class Settings(BaseSettings):
         None, description="Custom system prompt for the AI model (optional)"
     )
 
-    DB_FILE: str = Field("../data/emails.db", description="SQLite database file path")
+    DB_FILE: str = Field(f"{Path.cwd()}/data/emails.db", description="SQLite database file path")
 
     APPRISE_URL: Optional[AnyUrl] = Field(
         None, description="Apprise notification service URL (optional)"
