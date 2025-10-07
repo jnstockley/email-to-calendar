@@ -1,11 +1,11 @@
 ---
-name: Python Starter Project (Dev)
+name: Email to Calendar (Dev)
 services:
-  python-starter:
+  email-to-calendar:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: python-starter-dev
+    container_name: email-to-calendar-dev
     env_file:
       - .env
     volumes:
