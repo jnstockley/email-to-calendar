@@ -8,6 +8,10 @@ services:
     container_name: python-starter-dev
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    network_mode: host
     # Add ports if needed
     # ports:
     #   - '0.0.0.0:5001:5000'
