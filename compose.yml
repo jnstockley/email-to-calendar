@@ -1,11 +1,11 @@
 # dclint disable service-image-require-explicit-tag
 ---
-name: Python Starter Project
+name: Email to Calendar
 services:
-  python-starter:
-    image: jnstockley/python-starter:latest
+  email-to-calendar:
+    image: jnstockley/email-to-calendar:latest
     # Update image to <DOCKER_USERNAME>/<REPO_NAME>
-    container_name: python-starter
+    container_name: email-to-calendar
     env_file:
       - .env
     restart: unless-stopped
