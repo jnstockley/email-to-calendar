@@ -1,4 +1,4 @@
-FROM python:3.13.7 AS  build
+FROM python:3.14.0 AS  build
 
 ARG VERSION=0.0.0.dev
 
@@ -12,7 +12,7 @@ COPY ./uv.lock .
 RUN uv version ${VERSION} && \
     uv sync --frozen --no-cache --no-dev
 
-FROM python:3.13.7-slim
+FROM python:3.14.0-slim
 
 RUN adduser app
 
