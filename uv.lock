@@ -195,7 +195,7 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = "==2.12.0" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = "==1.0.15" },
     { name = "pydantic-settings", specifier = "==2.11.0" },
-    { name = "sqlmodel", specifier = "==0.0.25" },
+    { name = "sqlmodel", specifier = "==0.0.26" },
     { name = "tzlocal", specifier = "==5.3.1" },
 ]
 
@@ -787,15 +787,15 @@ wheels = [
 
 [[package]]
 name = "sqlmodel"
-version = "0.0.25"
+version = "0.0.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/80/d9c098a88724ee4554907939cf39590cf67e10c6683723216e228d3315f7/sqlmodel-0.0.25.tar.gz", hash = "sha256:56548c2e645975b1ed94d6c53f0d13c85593f57926a575e2bf566650b2243fa4", size = 117075, upload-time = "2025-09-17T21:44:41.219Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/df/db22e5f15ced27fab50909c484cf89a19cf279b7496f122dbc4b6f6ee238/sqlmodel-0.0.26.tar.gz", hash = "sha256:698f30782f85fe0a47e375bef666f827a7b19b5ed5210a8e84e3d3e8c57c27b8", size = 117795, upload-time = "2025-10-08T11:19:03.752Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/cf/5d175ce8de07fe694ec4e3d4d65c2dd06cc30f6c79599b31f9d2f6dd2830/sqlmodel-0.0.25-py3-none-any.whl", hash = "sha256:c98234cda701fb77e9dcbd81688c23bb251c13bb98ce1dd8d4adc467374d45b7", size = 28893, upload-time = "2025-09-17T21:44:39.764Z" },
+    { url = "https://files.pythonhosted.org/packages/af/f3/5ae4d3c0a870e945846533fadcf06a094e64dd1aeb98ec72c8879e08f3ba/sqlmodel-0.0.26-py3-none-any.whl", hash = "sha256:9cbef22fd733d184c4af8be2a3d8f558e7f5859031e8bef51fb1c72cdf72bed0", size = 28971, upload-time = "2025-10-08T11:19:02.255Z" },
 ]
 
 [[package]]
