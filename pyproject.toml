@@ -8,7 +8,7 @@ dependencies = [
     "apprise==1.9.5",
     "caldav==2.0.1",
     "imapclient==3.0.1",
-    "pydantic-ai-slim[openai]==1.5.0",
+    "pydantic-ai-slim[openai]==1.6.0",
     "pydantic-settings==2.11.0",
     "pydantic[email]==2.12.3",
     "sqlmodel==0.0.27",
