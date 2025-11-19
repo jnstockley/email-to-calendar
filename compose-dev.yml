@@ -39,3 +39,9 @@ services:
         - action: sync+restart
           path: .env
           target: python-starter
+
+  docker-model-runner:
+    provider:
+      type: model
+      options:
+        model: ai/gpt-oss

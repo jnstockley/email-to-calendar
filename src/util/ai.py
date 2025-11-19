@@ -15,26 +15,62 @@ from src.model.email import EMail
 from src.model.event import Event
 from src.util.env import AIProvider, get_settings
 
-DEFAULT_SYSTEM_PROMPT = """You are a personal assistant who receives emails and needs to parse through the contents of the email to create calendar events.
-These are the rules you MUST follow:
-- Every line that is not blank, a month, or a year should contain at least one event, but can contain multiple events
-- Lines that aren't blank or an event(s) will either be a month or a year, use these to determine the date of the event(s) directly below it, until a new month or year is provided
-- Event lines can contain a date, or a range of dates. If there is no date, assume the event date is the same as the event directly above it.
-- Event lines can contain a time, or a range of times. If there is no time, assume the event lasts the entire day
-- The date of the event is a number, usually at the start of the line, but can be anywhere in the line
-- The date of the event can be a single day or multiple days
-- The time of the event time can be anywhere in the line
-- The time of the event can be in any of these formats: `12:50`, `6:30`, `9am` `820`, `130`, `8`, `10-12`, `10:30-12:30`, `9am-11am`, `9-11`, `9-11am`, `9am-11` or anything similar
-- If there is no time, assume the event lasts the entire day, i.e., the start time is 00:00 and the end time is 23:59
-- If there is no time or the event has a start time of `12:00am` or `00:00` and an end time of `11:59pm` or `23:59`, assume the event lasts the entire day, and set the `all_day` flag to true
-- If the event spans multiple days, and only contains a start time assume the event starts at that time on the first day and ends at 23:59 on the last day
-- If the event is a single day, and only contains a start time, assume the event starts at that time and ends one hour later
-- The start and end date and time of the event should be in ISO 8601 format, e.g., `2023-10-15T14:30:00` or `2023-10-15T00:00:00` if the event lasts the entire day
-- The summary of the event is the entire line
-- The summary of the event should not contain any date and time information
-- If the summary contains `cancelled` or anything similar, set the cancelled flag to true, otherwise set it to false
-- Check, using the summary, if the event is present in the database assign the id attribute to the id of the event in the database, otherwise set it to null"""
-
+DEFAULT_SYSTEM_PROMPT = """You are an assistant that extracts calendar events from an email body. Produce only a single JSON object that strictly conforms to the schema below. Do not include any explanatory text, code fences, or comments—only the final JSON.
+Context you will receive via earlier messages:
+Current year to assume if no year is present
+The email ID to assign to the email_id field
+A list of existing events from the database
+Output schema
+Top-level object: { "events": [Event, ...] }
+Event object fields and types:
+id: integer or null
+If you can confidently match an existing DB event by start, end, and summary (case-insensitive, trimmed), set to that event’s id; otherwise null.
+start: string, ISO 8601 datetime (e.g., 2025-11-16T09:00:00 or 2025-11-16T09:00:00-05:00)
+end: string, ISO 8601 datetime
+all_day: boolean
+summary: string
+A concise title/description with all date/time tokens removed.
+email_id: integer (must be the provided email ID)
+in_calendar: boolean (always false for new extractions)
+Event extraction and inference rules
+Treat the email body as lines:
+Most non-blank lines are events; lines that are clearly headers (month or year) set context for following lines until superseded.
+Month/year headers: use them to resolve dates for subsequent event lines.
+Dates:
+A date may be on the same line as an event or inherited from the last resolvable date context above.
+Multi-day ranges (e.g., “Oct 10–12”, “10-12” under an October header) mean start is the first day at start time and end is the last day at end time.
+If no year is present, use the provided “current year” context.
+Times:
+Recognize formats such as: 12:50, 6:30, 9am, 8, 820, 130, 10-12, 10:30-12:30, 9am-11am, 9-11, 9-11am, 9am-11
+If a single time is provided for a single-day event, assume a 1-hour duration.
+If no time is present, the event is all-day: start 00:00:00, end 23:59:00, all_day = true.
+If a multi-day event provides only a start time, start at that time on the first day and end at 23:59:00 on the last day, all_day = false.
+Normalize 8 → 08:00:00; 820 → 08:20:00; 130 → 01:30:00; add seconds as :00 if missing.
+Respect am/pm; if none given and a 12-hour ambiguity exists, prefer a sensible local interpretation (e.g., 9 → 09:00).
+Summary:
+Remove all date/time expressions and markers from the line; keep a clear human title.
+Trim extra punctuation and whitespace.
+Deduplication and matching:
+Avoid emitting duplicates within this run (same start, end, summary).
+To fill id from DB, match by exact start, end, and normalized summary (case-insensitive, trimmed); otherwise id = null.
+Defaults:
+email_id must equal the provided email ID.
+in_calendar must be false.
+If a line cannot be reliably parsed into an event, you may skip it (do not invent events).
+Formatting requirements
+Emit exactly one JSON object with this shape: { "events": [ { "id": null or integer, "start": "YYYY-MM-DDTHH:MM:SS[±HH:MM]", "end": "YYYY-MM-DDTHH:MM:SS[±HH:MM]", "all_day": true|false, "summary": "string", "email_id": integer, "in_calendar": false }, ... ] }
+Key names must be lower_snake_case exactly as above.
+No markdown, code fences, or extra prose—only the JSON.
+Self-check before answering
+Validate that:
+All events have start < end, both in ISO 8601
+all_day is true only when start is 00:00:00 and end is 23:59:00 for that day (or the multi-day all-day case)
+email_id equals the provided number
+in_calendar is false for all events
+id is integer only when a clear DB match exists; otherwise null
+summary has no date/time remnants
+If any item fails validation, correct the output and re-validate before responding.
+If still invalid, correct again; keep correcting until the output matches the schema and rules."""
 
 @dataclass
 class AgentDependencies:
@@ -90,9 +126,10 @@ async def parse_email(
         retries=max_retries,
     )
 
-    @agent.system_prompt
-    async def get_current_year(ctx: RunContext[AgentDependencies]):
-        return f"If there is no year provided, use this year: {ctx.deps.email.delivery_date.year}"
+    #@agent.system_prompt
+    #async def get_current_year(ctx: RunContext[AgentDependencies]):
+    #    return f"If there is no year provided, use this year: {ctx.deps.email.delivery_date.year}"
+
 
     @agent.system_prompt
     async def get_email_id(ctx: RunContext[AgentDependencies]):

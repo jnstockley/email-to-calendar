@@ -12,6 +12,8 @@ the content, using regex, and automatically create calendar events in an iCal ac
 - [ ] If event already exists, check if details have changed, and update if necessary
 - [ ] Investigate IMAP IDLE (push instead of poll)
 - [X] Make sure all day events are handled correctly
+- [ ] Add Docker Model Runner support
+- [ ] Add 'validate' function for events, and if it fails, have AI re-process that event
 
 
 ## Environment Variables
