@@ -24,7 +24,7 @@ jobs:
     environment: docker
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Step 4 - Log in to Docker Hub
         uses: docker/login-action@v3
