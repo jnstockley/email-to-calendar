@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Step 1 - Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Step 2 - Setup Python
 
@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Step 1 - Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Step 2 - Setup Python
         uses: actions/setup-python@v6
@@ -93,7 +93,7 @@ jobs:
       id-token: write
     steps:
       - name: Step 1 -Check out the repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Step 2 - Setup Python
         uses: actions/setup-python@v6
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Step 1 - Check out the repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Step 2 - Set up QEMU
         uses: docker/setup-qemu-action@v3
