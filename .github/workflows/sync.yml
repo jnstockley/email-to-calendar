@@ -33,7 +33,7 @@ jobs:
           git commit -m "Pull changes from python-starter (may include conflicts)" || echo "No changes to commit"
 
       - name: Create Pull Request if differences exist
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_TOKEN }}
           base: dev
