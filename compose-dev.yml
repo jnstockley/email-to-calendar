@@ -45,3 +45,4 @@ services:
       type: model
       options:
         model: ai/gpt-oss
+        context_size: 128000
