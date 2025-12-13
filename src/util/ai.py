@@ -1,51 +1,35 @@
 from dataclasses import dataclass
-from enum import Enum
 
 from bs4 import BeautifulSoup
 import markdownify
+from pydantic import BaseModel, Field
 
-from pydantic_ai import Agent, ModelSettings
+from pydantic_ai import Agent, ModelSettings, RunContext
 from pydantic_ai.models import Model
 from pydantic_ai.providers.openai import OpenAIProvider
-from sqlalchemy.event import Events
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src import logger
 
-
-from pydantic import BaseModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 
 from src.db import engine
+from src.model.ai import Provider, Credential
 from src.model.email import EMail
+from src.model.event import Event
 
-
-class Credential(BaseModel):
-    pass
-
-class OllamaCredential(Credential):
-    host: str
-    port: int
-    secure: bool = False
-
-class DockerCredential(Credential):
-    host: str = "model-runner.docker.internal"
-    port: int = 80
-    secure: bool = False
-
-class OpenAICredential(Credential):
-    api_key: str
-
-class Provider(Enum):
-    OLLAMA = "ollama"
-    OPENAI = "openai"
-    DOCKER = "docker"
 
 @dataclass
 class AgentDependencies:
     email: EMail
     db = Session(engine)
+
+
+class Events(BaseModel):
+    events: list[Event] = Field(description="A list of events parsed from the email")
+
 
 def html_to_md(html: str) -> str:
     """
@@ -135,19 +119,48 @@ def get_system_prompt(email: EMail) -> str:
             "all_day": false,
             "summary": "Dentist Cam CANCELLED - on wait list"
         }]]
-    """.replace("{email_id}", str(email.id)).replace("{current_year}", str(email.delivery_date.year))
+    """.replace("{email_id}", str(email.id)).replace(
+        "{current_year}", str(email.delivery_date.year)
+    )
+
+    tools = """You have the following tools available to you:
+   
+    # get_current_email_delivery_date
+        - Description: Get the delivery date of the email being processed
+        - Input: None
+        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS)
+        
+    # get_delivery_date_by_event
+        - Description: Get the delivery date of an email by its event's email ID
+        - Input: The event to find the delivery date for
+        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS) or null if the email ID does not exist
+    
+    # save_event
+        - Description: Save the event to the database
+        - Input: The event object to save
+        - Output: A boolean indicating whether the save was successful, true if successful, false otherwise
+        - Note: This tool MUST be called for each event you return to ensure it is saved in the database. If the tool returns false, the event already exists and was not saved, following the matching rules to update the event.
+    """
+
+    matching = """An event is considered a duplicate if the summary has a similar meaning.
+        Example: Jack dentist and dentist appointment for Jack are considered similar.
+    If you find a similar event, make sure the `event.id` has the same value as the existing event in the database.
+    Use the `get_delivery_date_by_event` tool to get the delivery date of the existing using the existing event's id. This tool MUST be run for each existing event found.
+    Use the `get_current_email_delivery_date` tool to get the delivery date of the current. This tool MUST be run once if any existing events are found.
+    Whichever delivery date is the most recent, use that event's `summary`, `start`, `end`, and `email_id` when returning the event.
+    If there is no existing event found, set the `id` to `None`."""
 
     failure_message = """If there are no events found within the context or the email, respond with an empty array: [].
     If you cannot parse an event line fully or are not 100% sure of the result, skip that line and do not include it in the output, it is better to miss an event than to include an incorrect one.
     If an event has an invalid `"start"`, `"end"`, skip that event and do not include it in the output."""
 
-    output = f"""You must respond with a JSON array of objects, each object representing a calendar event with the following fields:
+    output = """You must respond with a JSON array of objects, each object representing a calendar event with the following fields:
     - "start": The star" date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
     - "end": The end date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
     - "all_day": A boolean indicating whether the event is an all-day event (true) or has a specific time (false).
     - "summary": A brief summary or title of the event in Sentence case."""
 
-    return f"{persona}\n\n{context}\n\n{failure_message}\n\n{output}"
+    return f"{persona}\n\n{context}\n\n{tools}\n\n{matching}\n\n{failure_message}\n\n{output}"
 
 
 def build_model(provider: Provider, model_name: str, credential: Credential) -> Model:
@@ -161,7 +174,6 @@ def build_model(provider: Provider, model_name: str, credential: Credential) -> 
     """
     settings = ModelSettings(
         temperature=0.2,
-        #max_tokens=131_072
     )
     if provider == Provider.OLLAMA:
         logger.debug("Building Ollama model")
@@ -170,14 +182,14 @@ def build_model(provider: Provider, model_name: str, credential: Credential) -> 
         return OpenAIChatModel(
             model_name=model_name,
             provider=OllamaProvider(base_url=base_url),
-            settings=settings
+            settings=settings,
         )
     elif provider == Provider.OPENAI:
         logger.debug("Building OpenAI model")
         return OpenAIChatModel(
             model_name=model_name,
             provider=OpenAIProvider(api_key=credential.api_key),
-            settings=settings
+            settings=settings,
         )
     elif provider == Provider.DOCKER:
         logger.debug("Building Docker model")
@@ -186,10 +198,11 @@ def build_model(provider: Provider, model_name: str, credential: Credential) -> 
         return OpenAIChatModel(
             model_name=model_name,
             provider=OllamaProvider(base_url=base_url),
-            settings=settings
+            settings=settings,
         )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
+
 
 def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
     """
@@ -204,9 +217,76 @@ def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
         output_type=Events,
         system_prompt=[
             get_system_prompt(email),
-            f"The output must be in the following JSON schema: {Events.model_json_schema()}"
+            f"The output must be in the following JSON schema: {Event.model_json_schema()}",
         ],
         retries=max_retries,
     )
+
+    @agent.system_prompt()
+    async def get_current_events(ctx: RunContext[AgentDependencies]):
+        logger.info("Calling get_current_events system prompt")
+        events = Event.get_all()
+        if events:
+            logger.debug("Current events in database: %s", events)
+            return (
+                f"These events are already in the database. If a new event has a similar summary, use the "
+                f"`get_email_delivery_date` tool to determine which event is the most recent, and use the newer event "
+                f"`summary`, `start`, `end`, `id`, and `email_id` when returning the event.\nCurrent events: {events}"
+            )
+        logger.debug("No current events in database")
+        return "There are no events currently in the database, so all parsed events are new."
+
+    @agent.tool()
+    async def get_delivery_date_by_event(
+        ctx: RunContext[AgentDependencies], event_id: int
+    ) -> str | None:
+        logger.info(f"Calling get_delivery_date_by_event tool for event: {event_id}")
+        event = Event.get_by_id(event_id)
+        if not event:
+            logger.debug("No event found with id: %d", event_id)
+            return None
+        email = EMail.get_by_id(event.email_id)
+        if email:
+            logger.debug("Found email: %s", email)
+            return email.delivery_date.isoformat()
+        logger.debug("No email found with id: %d", event.email_id)
+        return None
+
+    @agent.tool()
+    async def get_current_email_delivery_date(
+        ctx: RunContext[AgentDependencies],
+    ) -> str:
+        logger.info("Calling get_current_email_delivery_date tool")
+        email: EMail = ctx.deps.email
+        logger.debug("Current email delivery date: %s", email.delivery_date)
+        return email.delivery_date.isoformat()
+
+    @agent.tool()
+    async def save_event(ctx: RunContext[AgentDependencies], event: Event) -> bool:
+        logger.info(f"Calling save_event tool for event: {event}")
+        try:
+            if event.id == 0:
+                event.id = None
+            event.save()
+            return True
+        except IntegrityError as e:
+            logger.error(f"IntegrityError while saving event: {e}")
+            if (
+                ctx.deps.email.delivery_date
+                > EMail.get_by_id(event.email_id).delivery_date
+            ):
+                existing_event = Event.find_unique_event(
+                    event.start, event.end, event.summary
+                )
+                if existing_event:
+                    event.id = existing_event.id
+                    event.save()
+                    return True
+            return False
+
+    """@agent.tool()
+    async def merge_event(ctx: RunContext[AgentDependencies], event: Event) -> Event:
+        logger.info(f"Calling merge_event tool for event: {event}")
+        return event"""
 
     return agent

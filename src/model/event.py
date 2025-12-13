@@ -12,8 +12,11 @@ class Event(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("start", "end", "summary", name="uq_event_start_end_summary"),
     )
-    id: int = Field(primary_key=True,
-                    description="The unique identifier for the event, use the `get_event_id` tool to get determine this value.")
+    id: int | None = Field(
+        primary_key=True,
+        default=None,
+        description="The unique identifier for the event, use the `get_event_id` tool to get determine this value.",
+    )
     start: datetime = Field(
         nullable=False,
         description="The start date and time of the event, must be a Python datetime object, cannot be None",
@@ -27,9 +30,22 @@ class Event(SQLModel, table=True):
         default=False,
         description="Whether the event lasts all day or not",
     )
-    summary: str = Field(nullable=False, description="A brief summary or title of the event")
-    email_id: int = Field(foreign_key="email.id", nullable=True, description="The ID of the email from which this event was created, use the `get_email_id` tool to get determine this value.")
-    in_calendar: bool = Field(nullable=False, default=False, description="Indicates whether the event has been saved to the calendar")
+    summary: str = Field(
+        nullable=False, description="A brief summary or title of the event"
+    )
+    email_id: int = Field(
+        foreign_key="email.id",
+        nullable=True,
+        description="The ID of the email from which this event was created, use the `get_email_id` tool to get determine this value.",
+    )
+    in_calendar: bool = Field(
+        nullable=False,
+        default=False,
+        description="Indicates whether the event has been saved to the calendar",
+    )
+    caldav_id: str | None = Field(
+        nullable=True, description="The CalDAV identifier for the event, if applicable"
+    )
 
     def __repr__(self):
         return f"<Event(id={self.id}, start={self.start}, end={self.end}, summary={self.summary})>"
@@ -44,23 +60,10 @@ class Event(SQLModel, table=True):
                 self.start = datetime.fromisoformat(self.start)
             if isinstance(self.end, str):
                 self.end = datetime.fromisoformat(self.end)
-            if self.id is not None:
-                # Update existing event
-                existing_event = session.exec(
-                    select(Event).where(Event.id == self.id)
-                ).first()
-                if existing_event:
-                    existing_event.start = self.start
-                    existing_event.end = self.end
-                    existing_event.summary = self.summary
-                    existing_event.email_id = self.email_id
-                    existing_event.in_calendar = self.in_calendar
-                    session.add(existing_event)
-                else:
-                    # If id is set but not found, treat as new
-                    session.add(self)
-            else:
-                session.add(self)
+            self.summary = self.summary.lower()
+            if self.id:
+                self.caldav_id = Event.get_by_id(self.id).caldav_id
+            session.merge(self)
             session.commit()
             session.flush()
         finally:
@@ -120,7 +123,7 @@ class Event(SQLModel, table=True):
     def get_not_in_calendar():
         session = Session(engine)
         try:
-            return session.exec(select(Event).where(Event.in_calendar == False)).all()
+            return session.exec(select(Event).where(not Event.in_calendar)).all()
         finally:
             session.close()
 
@@ -129,6 +132,20 @@ class Event(SQLModel, table=True):
         session = Session(engine)
         try:
             max_id = session.exec(select(Event.id).order_by(Event.id.desc())).first()
-            return max_id if max_id is not None else 0
+            return max_id if max_id is not None else 1
+        finally:
+            session.close()
+
+    @staticmethod
+    def find_unique_event(start: datetime, end: datetime, summary: str):
+        session = Session(engine)
+        try:
+            return session.exec(
+                select(Event).where(
+                    Event.start == start,
+                    Event.end == end,
+                    Event.summary == summary.lower(),
+                )
+            ).first()
         finally:
             session.close()

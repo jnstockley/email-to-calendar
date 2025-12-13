@@ -18,3 +18,19 @@ def send_success_notification(apprise_url: AnyUrl, events: list[Event]):
         body=f"The following new events were added to your calendar: {events}",
         title="New Events Added to Calendar",
     )
+
+
+def send_failure_notification(apprise_url: AnyUrl, error_message: str):
+    # Create an Apprise instance
+    apobj = apprise.Apprise()
+
+    # Add all the notification services by their server url.
+    # A sample email notification:
+    apobj.add(apprise_url.encoded_string())
+
+    # Then notify these services any time you desire. The below would
+    # notify all the services loaded into our Apprise object.
+    apobj.notify(
+        body=f"An error occurred while processing emails: {error_message}",
+        title="Email Processing Error",
+    )

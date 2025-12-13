@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Optional
-from enum import Enum
 
 from pydantic import (
     Field,
@@ -10,10 +9,7 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings
 
-
-class AIProvider(str, Enum):
-    OLLAMA = "ollama"
-    OPENAI = "openai"
+from src.model.ai import Provider
 
 
 class Settings(BaseSettings):
@@ -38,7 +34,7 @@ class Settings(BaseSettings):
     CALDAV_PASSWORD: str = Field(default=None, description="CalDAV password")
     CALDAV_CALENDAR: str = Field(default=None, description="CalDAV calendar name")
 
-    AI_PROVIDER: AIProvider = Field(
+    AI_PROVIDER: Provider = Field(
         default=None, description="AI provider to use (ollama, openai, none)"
     )
 
@@ -62,7 +58,9 @@ class Settings(BaseSettings):
         None, description="Custom system prompt for the AI model (optional)"
     )
 
-    DB_FILE: str = Field(f"{Path.cwd()}/data/emails.db", description="SQLite database file path")
+    DB_FILE: str = Field(
+        f"{Path.cwd()}/data/emails.db", description="SQLite database file path"
+    )
 
     APPRISE_URL: Optional[AnyUrl] = Field(
         None, description="Apprise notification service URL (optional)"
@@ -77,11 +75,11 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     try:
         settings = Settings()
-        if settings.AI_PROVIDER == AIProvider.OLLAMA and not settings.AI_MODEL:
+        if settings.AI_PROVIDER == Provider.OLLAMA and not settings.AI_MODEL:
             settings.AI_MODEL = "gpt-oss:20b"
             assert settings.OLLAMA_HOST is not None
             assert settings.OLLAMA_PORT is not None
-        elif settings.AI_PROVIDER == AIProvider.OPENAI and not settings.AI_MODEL:
+        elif settings.AI_PROVIDER == Provider.OPENAI and not settings.AI_MODEL:
             settings.AI_MODEL = "gpt-5-mini"
             assert settings.OPEN_AI_API_KEY is not None
 
