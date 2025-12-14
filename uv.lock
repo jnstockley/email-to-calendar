@@ -209,13 +209,13 @@ requires-dist = [
     { name = "apprise", specifier = "==1.9.6" },
     { name = "caldav", specifier = "==2.2.3" },
     { name = "imapclient", specifier = "==3.0.1" },
-    { name = "markdownify", specifier = ">=1.2.2" },
+    { name = "markdownify", specifier = "==1.2.2" },
     { name = "pydantic", extras = ["email"], specifier = "==2.12.5" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = "==1.29.0" },
     { name = "pydantic-settings", specifier = "==2.12.0" },
     { name = "sqlmodel", specifier = "==0.0.27" },
     { name = "tzlocal", specifier = "==5.3.1" },
-    { name = "vobject", specifier = ">=0.9.9" },
+    { name = "vobject", specifier = "==0.9.9" },
 ]
 
 [package.metadata.requires-dev]
