@@ -133,14 +133,20 @@ def get_system_prompt(email: EMail) -> str:
     # get_delivery_date_by_event
         - Description: Get the delivery date of an email by its event's email ID
         - Input: The event to find the delivery date for
-        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS) or null if the email ID does not exist
+        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS) or null if the email ID does not exist"""
     
-    # save_event
+    '''# save_event
         - Description: Save the event to the database
         - Input: The event object to save
         - Output: A boolean indicating whether the save was successful, true if successful, false otherwise
         - Note: This tool MUST be called for each event you return to ensure it is saved in the database. If the tool returns false, the event already exists and was not saved, following the matching rules to update the event.
-    """
+        
+    # get_events
+        - Description: Get all existing events from the database
+        - Input: None
+        - Output: A list of existing event objects or null if no events exist
+        - Note: This tool MUST be called after each `save_event` call to get the most up-to-date list of events in the database, and to avoid duplicate events.
+    """'''
 
     matching = """An event is considered a duplicate if the summary has a similar meaning.
         Example: Jack dentist and dentist appointment for Jack are considered similar.
@@ -237,6 +243,16 @@ def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
         return "There are no events currently in the database, so all parsed events are new."
 
     @agent.tool()
+    async def get_events(ctx: RunContext[AgentDependencies]) -> list[Event] | None:
+        logger.info("Calling get_events tool")
+        events = Event.get_all()
+        if events:
+            logger.debug("Found events: %s", events)
+            return events
+        logger.debug("No events found")
+        return None
+
+    @agent.tool()
     async def get_delivery_date_by_event(
         ctx: RunContext[AgentDependencies], event_id: int
     ) -> str | None:
@@ -272,7 +288,8 @@ def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
         except IntegrityError as e:
             logger.error(f"IntegrityError while saving event: {e}")
             if (
-                ctx.deps.email.delivery_date
+                ctx.deps.email.id != event.email_id
+                and ctx.deps.email.delivery_date
                 > EMail.get_by_id(event.email_id).delivery_date
             ):
                 existing_event = Event.find_unique_event(

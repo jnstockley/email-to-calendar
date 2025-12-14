@@ -63,9 +63,11 @@ class Event(SQLModel, table=True):
             self.summary = self.summary.lower()
             if self.id:
                 self.caldav_id = Event.get_by_id(self.id).caldav_id
-            session.merge(self)
+            event = session.merge(self)
             session.commit()
             session.flush()
+            session.refresh(event)
+            return event
         finally:
             session.close()
 

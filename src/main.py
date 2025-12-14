@@ -3,6 +3,7 @@ import datetime
 from datetime import timedelta
 
 from pydantic_ai.models import Model
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel
 
 from src import logger
@@ -21,15 +22,15 @@ from src.util.notifications import send_success_notification, send_failure_notif
 def create_model(settings: Settings) -> Model:
     if settings.AI_PROVIDER == Provider.DOCKER:
         credential = DockerCredential(
-            host=settings.DOCKER_HOST,
-            port=settings.DOCKER_PORT,
-            secure=settings.DOCKER_SECURE,
+            host=settings.HOST,
+            port=settings.PORT,
+            secure=settings.SECURE,
         )
     elif settings.AI_PROVIDER == Provider.OLLAMA:
         credential = OllamaCredential(
-            host=settings.OLLAMA_HOST,
-            port=settings.OLLAMA_PORT,
-            secure=settings.OLLAMA_SECURE,
+            host=settings.HOST,
+            port=settings.PORT,
+            secure=settings.SECURE,
         )
     elif settings.AI_PROVIDER == Provider.OPENAI:
         credential = OpenAICredential(
@@ -59,7 +60,16 @@ async def generate_events_from_email(
     deps = AgentDependencies(email=email)
 
     results = await agent.run(email.body, deps=deps)
-    return results.output.events
+    events: list[Event] = results.output.events
+
+    # update the type for `start` and `end` to be datetime objects
+    for event in events:
+        if isinstance(event.start, str):
+            event.start = datetime.datetime.fromisoformat(event.start)
+        if isinstance(event.end, str):
+            event.end = datetime.datetime.fromisoformat(event.end)
+
+    return events
 
 
 async def schedule_run(task_coro, interval_seconds: int):
@@ -103,7 +113,7 @@ async def main(settings: Settings):
     finally:
         client.logout()
 
-    if not settings.BACKFILL:
+    if settings.BACKFILL:
         emails = emails[-1:] if emails else []
 
     logger.info("Retrieved %d emails", len(emails))
@@ -114,26 +124,40 @@ async def main(settings: Settings):
         logger.info("Starting to process email with id %d", email.id)
         start_time = datetime.datetime.now()
         try:
+            email.save()
             if not email.body:
                 logger.warning("Email id %d has no body, skipping", email.id)
                 continue
             events: list[Event] = await generate_events_from_email(
                 email, settings, model
             )
+            event_objs: list[Event] = []
+            for event in events:
+                logger.info("Saving event '%s' from email id %d", event.summary, email.id)
+                event.email_id = email.id
+
+                try:
+                    event = event.save()
+                    event_objs.append(event)
+                except IntegrityError:
+                    logger.warning(
+                        "Event '%s' from email id %d already exists in the database, skipping",
+                        event.summary,
+                        email.id,
+                    )
             logger.debug(
-                "Generated the following events from email id %d: %s", email.id, events
+                "Generated the following events from email id %d: %s", email.id, event_objs
             )
-            email.save()
             add_to_caldav(
                 settings.CALDAV_URL,
                 settings.CALDAV_USERNAME,
                 settings.CALDAV_PASSWORD,
-                settings.CALDAV_CALENDAR_NAME,
-                events,
+                settings.CALDAV_CALENDAR,
+                event_objs,
             )
-            send_success_notification(settings.APPRISE_URL, events)
+            send_success_notification(settings.APPRISE_URL, event_objs)
         except Exception as e:
-            error_message = f"Error generating events from email id {email.id}\n{e}"
+            error_message = f"Error generating events from email id {email.id}"
             logger.error(error_message, e)
             send_failure_notification(settings.APPRISE_URL, error_message)
         finally:
@@ -148,4 +172,11 @@ async def main(settings: Settings):
 
 if __name__ == "__main__":
     settings = get_settings()
-    asyncio.run(schedule_run(main, interval_seconds=settings.INTERVAL_MINUTES * 60))
+    try:
+        asyncio.run(
+            schedule_run(
+                lambda: main(settings), interval_seconds=settings.INTERVAL_MINUTES * 60
+            )
+        )
+    except KeyboardInterrupt:
+        logger.info("Program interrupted by user, shutting down.")

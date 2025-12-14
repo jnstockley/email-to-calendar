@@ -93,12 +93,10 @@ def add_to_caldav(
                                 summary=event.summary,
                             )
                             event.caldav_id = getattr(new_cal_event, "id", None)
-                            event.save()
                             event.save_to_caldav()
                             continue
 
                         # update local model and mark saved to caldav
-                        event.save()
                         event.save_to_caldav()
                         continue  # processed this event
                     # if cal_event not found, fall through to add a new one
@@ -120,7 +118,6 @@ def add_to_caldav(
                     dtstart=event.start, dtend=event.end, summary=event.summary
                 )
                 event.caldav_id = getattr(cal_event, "id", None)
-                event.save()
                 event.save_to_caldav()
             except Exception as e:
                 logger.error(f"Failed to add event {event.summary} to CalDAV: {e}")

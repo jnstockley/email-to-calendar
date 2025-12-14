@@ -38,11 +38,9 @@ class Settings(BaseSettings):
         default=None, description="AI provider to use (ollama, openai, none)"
     )
 
-    OLLAMA_SECURE: bool = Field(
-        False, description="Whether to use HTTPS for Ollama connection"
-    )
-    OLLAMA_HOST: str = Field("localhost", description="Ollama base URL")
-    OLLAMA_PORT: int = Field(11434, ge=1, le=65535, description="Ollama port")
+    SECURE: bool = Field(False, description="Whether to use HTTPS for AI connection")
+    HOST: str = Field("localhost", description="AI base URL")
+    PORT: int = Field(11434, ge=1, le=65535, description="AI server port")
 
     OPEN_AI_API_KEY: Optional[str] = Field(
         None, description="OpenAI API key (required if AI_PROVIDER is openai)"
