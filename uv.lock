@@ -194,6 +194,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "sqlmodel" },
     { name = "tzlocal" },
+    { name = "vobject" },
 ]
 
 [package.dev-dependencies]
@@ -214,6 +215,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = "==2.12.0" },
     { name = "sqlmodel", specifier = "==0.0.27" },
     { name = "tzlocal", specifier = "==5.3.1" },
+    { name = "vobject", specifier = ">=0.9.9" },
 ]
 
 [package.metadata.requires-dev]
@@ -784,6 +786,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pytz"
+version = "2025.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3", size = 320884, upload-time = "2025-03-25T02:25:00.538Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/c4/34e93fe5f5429d7570ec1fa436f1986fb1f00c3e0f43a589fe2bbcd22c3f/pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00", size = 509225, upload-time = "2025-03-25T02:24:58.468Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1059,6 +1070,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/75/8b/1645dab9c6fb12286f379789b99bc67fd13d4cee3a7b92ad4eb2e8867dd0/urllib3_future-2.14.906.tar.gz", hash = "sha256:651cf278bb033946badf6ddc626c9dbfe0510284f2a6b3bf1c48ea9ce4159ccd", size = 1113671, upload-time = "2025-11-06T05:42:41.2Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/14/bd295c691086f6f307a9227764bc15280bdcb72ee996dc706272a3d14168/urllib3_future-2.14.906-py3-none-any.whl", hash = "sha256:31fdcc799a3fc4ff7a13810d7c0f9c000b53a21851aa6d2e667a2173d2331424", size = 683971, upload-time = "2025-11-06T05:42:39.194Z" },
+]
+
+[[package]]
+name = "vobject"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "pytz" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d0/8a/15c34b3d27c43fc81a467d0f66577afc5542326804c42f30557e31c3259e/vobject-0.9.9.tar.gz", hash = "sha256:ac44e5d7e2079d84c1d52c50a615b9bec4b1ba958608c4c7fe40cbf33247b38e", size = 1208905, upload-time = "2024-12-16T07:29:39.178Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/20/6bba813bbd498c28edbbcf8253a6398cf4266ecf7bfa6129835c0a2bfbb1/vobject-0.9.9-py2.py3-none-any.whl", hash = "sha256:0fbdb982065cf4d1843a5d5950c88510041c6de026bda49c3502721de1c6ac3d", size = 47526, upload-time = "2024-12-16T07:31:08.493Z" },
 ]
 
 [[package]]
