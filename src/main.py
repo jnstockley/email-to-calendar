@@ -74,9 +74,8 @@ async def schedule_run(task_coro, interval_seconds: int):
         await asyncio.sleep(sleep_for)
 
 
-async def main():
+async def main(settings: Settings):
     logger.info("Starting email retrieval process")
-    settings = get_settings()
 
     # Create tables if they don't exist
     SQLModel.metadata.create_all(engine)
@@ -148,4 +147,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(schedule_run(main, interval_seconds=300))
+    settings = get_settings()
+    asyncio.run(schedule_run(main, interval_seconds=settings.INTERVAL_MINUTES * 60))

@@ -80,7 +80,7 @@ def get_emails_by_filter(
                 email_type=email_type.upper() or "PLAIN",
             )
         )
-        emails.sort(key=lambda e: e.delivery_date)  # TODO Make this configureable
+        emails.sort(key=lambda e: e.delivery_date)
     return emails
 
 
