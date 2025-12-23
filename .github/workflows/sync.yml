@@ -38,10 +38,7 @@ jobs:
           fi
 
       - name: Create Pull Request if differences exist
-<<<<<<< HEAD
-=======
         if: steps.sync.outputs.has_changes == 'true'
->>>>>>> external/main
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_TOKEN }}
