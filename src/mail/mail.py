@@ -7,41 +7,52 @@ from typing import Optional
 
 from src import logger
 from src.model.email import EMail
+from src.util.env import Settings
 
 
-def authenticate(host: str, port: int, user: str, password: str, ssl: bool = True):
+def authenticate(settings: Settings) -> imaplib.IMAP4 | imaplib.IMAP4_SSL:
     """
     Authenticate to the user's IMAP server to retrieve emails.
     """
-    if ssl:
-        client = __connect_imap_ssl(host, port, user, password)
+    if settings.IMAP_SSL:
+        client = __connect_imap_ssl(
+            settings.IMAP_HOST,
+            settings.IMAP_PORT,
+            settings.IMAP_USERNAME,
+            settings.IMAP_PASSWORD,
+        )
     else:
-        client = __connect_imap_starttls(host, port, user, password)
+        client = __connect_imap_starttls(
+            settings.IMAP_HOST,
+            settings.IMAP_PORT,
+            settings.IMAP_USERNAME,
+            settings.IMAP_PASSWORD,
+        )
     return client
 
 
 def get_emails_by_filter(
     client: imaplib.IMAP4 | imaplib.IMAP4_SSL,
-    from_email: str = None,
-    subject: str = None,
-    since: datetime = None,
-    mailbox: str = "INBOX",
+    settings: Settings,
+    since: Optional[datetime] = None,
 ):
     search_str: str = ""
-    if from_email:
-        search_str += f'FROM "{from_email}" '
-    if subject:
-        search_str += f'SUBJECT "{subject}" '
+    if settings.FILTER_FROM_EMAIL:
+        search_str += f'FROM "{settings.FILTER_FROM_EMAIL}" '
+    if settings.FILTER_SUBJECT:
+        search_str += f'SUBJECT "{settings.FILTER_SUBJECT}" '
     if since:
         search_str += f"SINCE {since.strftime('%d-%b-%Y')} "
     if not search_str:
         logger.error("At least one filter (from_email or subject) must be provided")
         raise ValueError("At least one filter (from_email or subject) must be provided")
 
-    status, _ = client.select(mailbox)
+    status, _ = client.select(settings.IMAP_MAILBOX)
     if status != "OK":
-        logger.error(f"Failed to select mailbox '{mailbox}': {status}")
-        raise ConnectionError(f"Failed to select mailbox '{mailbox}': {status}")
+        logger.error(f"Failed to select mailbox '{settings.IMAP_MAILBOX}': {status}")
+        raise ConnectionError(
+            f"Failed to select mailbox '{settings.IMAP_MAILBOX}': {status}"
+        )
 
     status, data = client.search(None, search_str.strip())
     if status != "OK":
@@ -69,6 +80,7 @@ def get_emails_by_filter(
                 email_type=email_type.upper() or "PLAIN",
             )
         )
+        emails.sort(key=lambda e: e.delivery_date)
     return emails
 
 

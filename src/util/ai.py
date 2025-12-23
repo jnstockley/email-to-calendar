@@ -1,81 +1,29 @@
-import asyncio
 from dataclasses import dataclass
-from datetime import datetime
 
+from bs4 import BeautifulSoup
+import markdownify
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.ollama import OllamaProvider
+
+from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai.models import Model
 from pydantic_ai.providers.openai import OpenAIProvider
-from sqlmodel import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from src import logger
-from src.db import Session, engine
+
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.ollama import OllamaProvider
+
+from src.db import engine
+from src.model.ai import Provider, Credential
 from src.model.email import EMail
 from src.model.event import Event
-from src.util.env import AIProvider, get_settings
 
-DEFAULT_SYSTEM_PROMPT = """You are an assistant that extracts calendar events from an email body. Produce only a single JSON object that strictly conforms to the schema below. Do not include any explanatory text, code fences, or comments—only the final JSON.
-Context you will receive via earlier messages:
-Current year to assume if no year is present
-The email ID to assign to the email_id field
-A list of existing events from the database
-Output schema
-Top-level object: { "events": [Event, ...] }
-Event object fields and types:
-id: integer or null
-If you can confidently match an existing DB event by start, end, and summary (case-insensitive, trimmed), set to that event’s id; otherwise null.
-start: string, ISO 8601 datetime (e.g., 2025-11-16T09:00:00 or 2025-11-16T09:00:00-05:00)
-end: string, ISO 8601 datetime
-all_day: boolean
-summary: string
-A concise title/description with all date/time tokens removed.
-email_id: integer (must be the provided email ID)
-in_calendar: boolean (always false for new extractions)
-Event extraction and inference rules
-Treat the email body as lines:
-Most non-blank lines are events; lines that are clearly headers (month or year) set context for following lines until superseded.
-Month/year headers: use them to resolve dates for subsequent event lines.
-Dates:
-A date may be on the same line as an event or inherited from the last resolvable date context above.
-Multi-day ranges (e.g., “Oct 10–12”, “10-12” under an October header) mean start is the first day at start time and end is the last day at end time.
-If no year is present, use the provided “current year” context.
-Times:
-Recognize formats such as: 12:50, 6:30, 9am, 8, 820, 130, 10-12, 10:30-12:30, 9am-11am, 9-11, 9-11am, 9am-11
-If a single time is provided for a single-day event, assume a 1-hour duration.
-If no time is present, the event is all-day: start 00:00:00, end 23:59:00, all_day = true.
-If a multi-day event provides only a start time, start at that time on the first day and end at 23:59:00 on the last day, all_day = false.
-Normalize 8 → 08:00:00; 820 → 08:20:00; 130 → 01:30:00; add seconds as :00 if missing.
-Respect am/pm; if none given and a 12-hour ambiguity exists, prefer a sensible local interpretation (e.g., 9 → 09:00).
-Summary:
-Remove all date/time expressions and markers from the line; keep a clear human title.
-Trim extra punctuation and whitespace.
-Deduplication and matching:
-Avoid emitting duplicates within this run (same start, end, summary).
-To fill id from DB, match by exact start, end, and normalized summary (case-insensitive, trimmed); otherwise id = null.
-Defaults:
-email_id must equal the provided email ID.
-in_calendar must be false.
-If a line cannot be reliably parsed into an event, you may skip it (do not invent events).
-Formatting requirements
-Emit exactly one JSON object with this shape: { "events": [ { "id": null or integer, "start": "YYYY-MM-DDTHH:MM:SS[±HH:MM]", "end": "YYYY-MM-DDTHH:MM:SS[±HH:MM]", "all_day": true|false, "summary": "string", "email_id": integer, "in_calendar": false }, ... ] }
-Key names must be lower_snake_case exactly as above.
-No markdown, code fences, or extra prose—only the JSON.
-Self-check before answering
-Validate that:
-All events have start < end, both in ISO 8601
-all_day is true only when start is 00:00:00 and end is 23:59:00 for that day (or the multi-day all-day case)
-email_id equals the provided number
-in_calendar is false for all events
-id is integer only when a clear DB match exists; otherwise null
-summary has no date/time remnants
-If any item fails validation, correct the output and re-validate before responding.
-If still invalid, correct again; keep correcting until the output matches the schema and rules."""
 
 @dataclass
 class AgentDependencies:
     email: EMail
-    max_result_retries: int = get_settings().AI_MAX_RETRIES
     db = Session(engine)
 
 
@@ -83,81 +31,279 @@ class Events(BaseModel):
     events: list[Event] = Field(description="A list of events parsed from the email")
 
 
-async def parse_email(
-    email: EMail,
-    provider: AIProvider,
-    model: str = "gpt-oss:20b",
-    ollama_host: str = "localhost",
-    ollama_port: int = 11434,
-    ollama_secure: bool = False,
-    open_ai_api_key: str = None,
-    max_retries: int = 3,
-    system_prompt: str = None,
-) -> list[Event]:
-    if provider == AIProvider.OLLAMA:
-        logger.info(
-            f"Creating events from email id {email.id}, using model: {model} at ollama host: {'https://' if ollama_secure else 'http://'}{ollama_host}:{ollama_port}"
+def html_to_md(html: str) -> str:
+    """
+    Convert HTML content to Markdown format.
+    :param html: The HTML content to convert.
+    :return: The converted Markdown content.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    text = str(soup)
+    md = markdownify.markdownify(text, heading_style="ATX")
+    return md
+
+
+def get_system_prompt(email: EMail) -> str:
+    persona = """Act as a high level personal assistant for a C level executive who's main responsibility is managing 
+    their calendar and scheduling meetings from emails they receive."""
+
+    context = """You are going to parse emails, that are in markdown format, and extract calendar events from them.
+    The `email_id` is {email_id}, use this for ALL events you extract from this email.
+    If there is a FOUR DIGIT year, before any month i.e, 2023, use that year for all dates, otherwise use the current year is {current_year}.
+    There can be a heading that is a short of long month name i.e., 'Oct' or 'October' on a new line
+    Subsequent lines can can contain a date number or a range of dates, i.e, 22-23 or 24
+    After the date or date range, there CAN be an OPTIONAL time, i.e., 11 am or 2:50, or 12, these must be converted into ISO-8601 strings.
+    After OPTIONAL time, there will be a summary of the event, this must be formatted in `Sentence case`.
+    After an event, there CAN be an 0 or more lines that are the same as the above line. If there is no DATE this should take the date of the last event, otherwise it has a new date.
+    There can then be 0 or more new lines, before the next month heading, and the same rules apply.
+    If the months loops, i.e, the previous month was before or December and the new month is January or later, increment the year by 1.
+    Here is an example of the format:
+        INPUT:
+            **October**  
+            22-23 Mum/Dad Gwen Chicago  
+            24 Katie Drs
+            
+            **November**
+            
+            9 2pm Mark Dudley  
+            
+            19-27 Jack/Cam Thanksgiving
+            
+            25 11 am Nurse Phone Call Mark Gastro
+            
+            26 Family+Nana Tallgrass 6pm
+            
+            *2024*
+            **January**  
+            3 2:50 Dentist Cam CANCELLED - on wait list
+        OUTPUT:
+        [{
+            "start": "2023-10-22",
+            "end": "2023-10-23",
+            "all_day": true,
+            "summary": Mum/Dad Gwen Chicago
+        },
+        {
+            "start": "2023-10-24",
+            "end": "2023-10-24",
+            "all_day": true,
+            "summary": "Katie Drs"
+        },
+        {
+            "start": "2023-11-09T14:00:00",
+            "end": "2023-11-09T15:00:00",
+            "all_day": false,
+            "summary": "Mark Dudley"
+        },
+        {
+            "start": "2023-11-19",
+            "end": "2023-11-27",
+            "all_day": true,
+            "summary": "Jack/Cam Thanksgiving"
+        },
+        {
+            "start": "2023-11-25T11:00:00",
+            "end": "2023-11-25T12:00:00",
+            "all_day": false,
+            "summary": "Nurse Phone Call Mark Gastro"
+        },
+        {
+            "start": "2023-11-26T18:00:00",
+            "end": "2023-11-26T19:00:00",
+            "all_day": false,
+            "summary": "Family+Nana Tallgrass"
+        },
+        {
+            "start": "2024-01-03T14:50:00",
+            "end": "2024-01-03T15:50:00",
+            "all_day": false,
+            "summary": "Dentist Cam CANCELLED - on wait list"
+        }]]
+    """.replace("{email_id}", str(email.id)).replace(
+        "{current_year}", str(email.delivery_date.year)
+    )
+
+    tools = """You have the following tools available to you:
+   
+    # get_current_email_delivery_date
+        - Description: Get the delivery date of the email being processed
+        - Input: None
+        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS)
+        
+    # get_delivery_date_by_event
+        - Description: Get the delivery date of an email by its event's email ID
+        - Input: The event to find the delivery date for
+        - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS) or null if the email ID does not exist"""
+    
+    '''# save_event
+        - Description: Save the event to the database
+        - Input: The event object to save
+        - Output: A boolean indicating whether the save was successful, true if successful, false otherwise
+        - Note: This tool MUST be called for each event you return to ensure it is saved in the database. If the tool returns false, the event already exists and was not saved, following the matching rules to update the event.
+        
+    # get_events
+        - Description: Get all existing events from the database
+        - Input: None
+        - Output: A list of existing event objects or null if no events exist
+        - Note: This tool MUST be called after each `save_event` call to get the most up-to-date list of events in the database, and to avoid duplicate events.
+    """'''
+
+    matching = """An event is considered a duplicate if the summary has a similar meaning.
+        Example: Jack dentist and dentist appointment for Jack are considered similar.
+    If you find a similar event, make sure the `event.id` has the same value as the existing event in the database.
+    Use the `get_delivery_date_by_event` tool to get the delivery date of the existing using the existing event's id. This tool MUST be run for each existing event found.
+    Use the `get_current_email_delivery_date` tool to get the delivery date of the current. This tool MUST be run once if any existing events are found.
+    Whichever delivery date is the most recent, use that event's `summary`, `start`, `end`, and `email_id` when returning the event.
+    If there is no existing event found, set the `id` to `None`."""
+
+    failure_message = """If there are no events found within the context or the email, respond with an empty array: [].
+    If you cannot parse an event line fully or are not 100% sure of the result, skip that line and do not include it in the output, it is better to miss an event than to include an incorrect one.
+    If an event has an invalid `"start"`, `"end"`, skip that event and do not include it in the output."""
+
+    output = """You must respond with a JSON array of objects, each object representing a calendar event with the following fields:
+    - "start": The star" date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+    - "end": The end date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+    - "all_day": A boolean indicating whether the event is an all-day event (true) or has a specific time (false).
+    - "summary": A brief summary or title of the event in Sentence case."""
+
+    return f"{persona}\n\n{context}\n\n{tools}\n\n{matching}\n\n{failure_message}\n\n{output}"
+
+
+def build_model(provider: Provider, model_name: str, credential: Credential) -> Model:
+    """
+    Build and return an AI model based on the specified provider, model name, and credentials.
+    :param provider: The AI provider to use (OLLAMA, OPENAI, DOCKER).
+    :param model_name: The name of the model to use.
+    :param credential: The credentials required for the specified provider.
+    :return: An instance of the specified AI model.
+    :raises ValueError: If the specified provider is unsupported.
+    """
+    settings = ModelSettings(
+        temperature=0.2,
+    )
+    if provider == Provider.OLLAMA:
+        logger.debug("Building Ollama model")
+        base_url = f"{'https://' if credential.secure else 'http://'}{credential.host}:{credential.port}/v1"
+        logger.debug("Ollama base URL: %s", base_url)
+        return OpenAIChatModel(
+            model_name=model_name,
+            provider=OllamaProvider(base_url=base_url),
+            settings=settings,
         )
-        ai_model = OpenAIChatModel(
-            model_name=model,
-            provider=OllamaProvider(
-                base_url=f"{'https://' if ollama_secure else 'http://'}{ollama_host}:{ollama_port}/v1"
-            ),
+    elif provider == Provider.OPENAI:
+        logger.debug("Building OpenAI model")
+        return OpenAIChatModel(
+            model_name=model_name,
+            provider=OpenAIProvider(api_key=credential.api_key),
+            settings=settings,
         )
-    elif provider == AIProvider.OPENAI:
-        logger.info(
-            f"Creating events from email id {email.id}, using OpenAI model: {model}"
-        )
-        ai_model = OpenAIChatModel(
-            model_name=model, provider=OpenAIProvider(api_key=open_ai_api_key)
+    elif provider == Provider.DOCKER:
+        logger.debug("Building Docker model")
+        base_url = f"{'https://' if credential.secure else 'http://'}{credential.host}:{credential.port}/engines/v1"
+        logger.debug("Docker base URL: %s", base_url)
+        return OpenAIChatModel(
+            model_name=model_name,
+            provider=OllamaProvider(base_url=base_url),
+            settings=settings,
         )
     else:
-        raise ValueError(f"Unsupported AI provider: {provider}")
+        raise ValueError(f"Unsupported provider: {provider}")
 
-    deps = AgentDependencies(email=email)
 
-    system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
-
+def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
+    """
+    Build and return an AI agent using the specified model.
+    :param model: The AI model to use for the agent.
+    :return: An instance of the AI agent.
+    """
+    logger.debug("Building AI agent")
     agent = Agent(
-        ai_model,
+        model,
         deps_type=AgentDependencies,
         output_type=Events,
-        system_prompt=system_prompt,
+        system_prompt=[
+            get_system_prompt(email),
+            f"The output must be in the following JSON schema: {Event.model_json_schema()}",
+        ],
         retries=max_retries,
     )
 
-    #@agent.system_prompt
-    #async def get_current_year(ctx: RunContext[AgentDependencies]):
-    #    return f"If there is no year provided, use this year: {ctx.deps.email.delivery_date.year}"
+    @agent.system_prompt()
+    async def get_current_events(ctx: RunContext[AgentDependencies]):
+        logger.info("Calling get_current_events system prompt")
+        events = Event.get_all()
+        if events:
+            logger.debug("Current events in database: %s", events)
+            return (
+                f"These events are already in the database. If a new event has a similar summary, use the "
+                f"`get_email_delivery_date` tool to determine which event is the most recent, and use the newer event "
+                f"`summary`, `start`, `end`, `id`, and `email_id` when returning the event.\nCurrent events: {events}"
+            )
+        logger.debug("No current events in database")
+        return "There are no events currently in the database, so all parsed events are new."
 
+    @agent.tool()
+    async def get_events(ctx: RunContext[AgentDependencies]) -> list[Event] | None:
+        logger.info("Calling get_events tool")
+        events = Event.get_all()
+        if events:
+            logger.debug("Found events: %s", events)
+            return events
+        logger.debug("No events found")
+        return None
 
-    @agent.system_prompt
-    async def get_email_id(ctx: RunContext[AgentDependencies]):
-        return f"The email ID is {ctx.deps.email.id}. Use this ID for the email_id attribute of the event(s)."
+    @agent.tool()
+    async def get_delivery_date_by_event(
+        ctx: RunContext[AgentDependencies], event_id: int
+    ) -> str | None:
+        logger.info(f"Calling get_delivery_date_by_event tool for event: {event_id}")
+        event = Event.get_by_id(event_id)
+        if not event:
+            logger.debug("No event found with id: %d", event_id)
+            return None
+        email = EMail.get_by_id(event.email_id)
+        if email:
+            logger.debug("Found email: %s", email)
+            return email.delivery_date.isoformat()
+        logger.debug("No email found with id: %d", event.email_id)
+        return None
 
-    @agent.system_prompt
-    async def get_events(ctx: RunContext[AgentDependencies]):
-        logger.info("Checking existing events in the database...")
-        events = ctx.deps.db.exec(select(Event)).all()
-        logger.debug("Found %d existing events in the database", len(events))
-        if not events:
-            return "There are no current events in the database, assume all events are new."
-        return f"The currents events in the database are: {events}"
+    @agent.tool()
+    async def get_current_email_delivery_date(
+        ctx: RunContext[AgentDependencies],
+    ) -> str:
+        logger.info("Calling get_current_email_delivery_date tool")
+        email: EMail = ctx.deps.email
+        logger.debug("Current email delivery date: %s", email.delivery_date)
+        return email.delivery_date.isoformat()
 
-    logger.info("Generating events...")
-    start_time = datetime.now()
+    @agent.tool()
+    async def save_event(ctx: RunContext[AgentDependencies], event: Event) -> bool:
+        logger.info(f"Calling save_event tool for event: {event}")
+        try:
+            if event.id == 0:
+                event.id = None
+            event.save()
+            return True
+        except IntegrityError as e:
+            logger.error(f"IntegrityError while saving event: {e}")
+            if (
+                ctx.deps.email.id != event.email_id
+                and ctx.deps.email.delivery_date
+                > EMail.get_by_id(event.email_id).delivery_date
+            ):
+                existing_event = Event.find_unique_event(
+                    event.start, event.end, event.summary
+                )
+                if existing_event:
+                    event.id = existing_event.id
+                    event.save()
+                    return True
+            return False
 
-    task = asyncio.create_task(agent.run(email.body, deps=deps))
-    while not task.done():
-        logger.debug("Waiting for AI to finish generating events...")
-        await asyncio.sleep(10)
+    """@agent.tool()
+    async def merge_event(ctx: RunContext[AgentDependencies], event: Event) -> Event:
+        logger.info(f"Calling merge_event tool for event: {event}")
+        return event"""
 
-    result = await task
-    events: Events = result.output
-
-    end_time = datetime.now()
-    elapsed = (end_time - start_time).total_seconds()
-    logger.info(
-        f"Took {elapsed:.3f} seconds to generate {len(events.events)} events from email id: {email.id}"
-    )
-    return events.events
+    return agent

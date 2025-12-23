@@ -1,3 +1,4 @@
+# python
 from caldav import DAVClient, Calendar
 from pydantic import AnyUrl
 
@@ -13,6 +14,23 @@ def authenticate_caldav(url: AnyUrl, username: str, password: str) -> DAVClient:
         password=password,
         headers={"User-Agent": "email-to-calendar/1.0"},
     )
+
+
+def _find_caldav_event_by_id(calendar: Calendar, caldav_id: str):
+    for ev in calendar.events():
+        # try common attributes first
+        for attr in ("id", "href", "url"):
+            val = getattr(ev, attr, None)
+            if val and caldav_id in str(val):
+                return ev
+        # fallback: try UID inside the VEVENT
+        try:
+            uid = ev.vobject_instance.vevent.uid.value
+            if uid == caldav_id:
+                return ev
+        except Exception:
+            continue
+    return None
 
 
 def add_to_caldav(
@@ -33,6 +51,62 @@ def add_to_caldav(
             return
 
         for event in events:
+            # If we have a CalDAV id, try to update the existing event first
+            if not event.in_calendar and event.caldav_id:
+                try:
+                    cal_event = _find_caldav_event_by_id(calendar, str(event.caldav_id))
+                    if cal_event:
+                        logger.info(
+                            f"Updating event {event.summary} in CalDAV calendar '{calendar_name}'"
+                        )
+                        # If all-day, convert to date objects expected by vobject
+                        if event.all_day:
+                            event.start = event.start.date()
+                            event.end = event.end.date()
+
+                        # Update vobject fields if available
+                        try:
+                            vevent = cal_event.vobject_instance.vevent
+                            if hasattr(vevent, "summary"):
+                                vevent.summary.value = event.summary
+                            if hasattr(vevent, "dtstart"):
+                                vevent.dtstart.value = event.start
+                            if hasattr(vevent, "dtend"):
+                                vevent.dtend.value = event.end
+                            # persist changes
+                            cal_event.save()
+                        except Exception:
+                            # If direct vobject manipulation isn't supported, fallback to deleting+adding
+                            logger.warning(
+                                "Direct vobject update failed; falling back to replace (delete + add)."
+                            )
+                            try:
+                                cal_event.delete()
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to delete existing CalDAV event: {e}"
+                                )
+                                raise e
+                            new_cal_event = calendar.add_event(
+                                dtstart=event.start,
+                                dtend=event.end,
+                                summary=event.summary,
+                            )
+                            event.caldav_id = getattr(new_cal_event, "id", None)
+                            event.save_to_caldav()
+                            continue
+
+                        # update local model and mark saved to caldav
+                        event.save_to_caldav()
+                        continue  # processed this event
+                    # if cal_event not found, fall through to add a new one
+                except Exception as e:
+                    logger.error(
+                        f"Failed to update event {event.summary} in CalDAV: {e}"
+                    )
+                    raise e
+
+            # Default: add new event
             try:
                 logger.info(
                     f"Adding event {event.summary} to CalDAV calendar '{calendar_name}'"
@@ -40,9 +114,10 @@ def add_to_caldav(
                 if event.all_day:
                     event.start = event.start.date()
                     event.end = event.end.date()
-                calendar.add_event(
+                cal_event = calendar.add_event(
                     dtstart=event.start, dtend=event.end, summary=event.summary
                 )
+                event.caldav_id = getattr(cal_event, "id", None)
                 event.save_to_caldav()
             except Exception as e:
                 logger.error(f"Failed to add event {event.summary} to CalDAV: {e}")
