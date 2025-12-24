@@ -168,6 +168,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Step 4 - Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
       - name: Step 5 - Log in to the Container registry
         uses: docker/login-action@v3
         with:
