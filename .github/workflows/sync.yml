@@ -33,8 +33,11 @@ jobs:
             echo "No changes detected"
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            # Merge external main into current branch
-            git merge external/main --allow-unrelated-histories -m "Pull changes from python-starter"
+            # Merge external main into current branch, allowing conflicts
+            git merge external/main --allow-unrelated-histories --no-commit -m "Pull changes from python-starter" || true
+            # Stage all files including those with conflicts
+            git add -A
+            git commit -m "Pull changes from python-starter" || true
           fi
 
       - name: Create Pull Request if differences exist
