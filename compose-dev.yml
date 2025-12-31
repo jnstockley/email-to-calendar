@@ -15,8 +15,6 @@ services:
     # Add ports if needed
     # ports:
     #   - '0.0.0.0:5001:5000'
-    volumes:
-      - ./logs:/app/logs
     restart: unless-stopped
     develop:
       watch:

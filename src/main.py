@@ -13,7 +13,6 @@ from pydantic_ai.models import Model
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel
 
-from src import logger
 from src.events.caldav import add_to_caldav
 from src.mail import mail
 from src.db import engine
@@ -140,7 +139,9 @@ async def main(settings: Settings):
             )
             event_objs: list[Event] = []
             for event in events:
-                logger.info("Saving event '%s' from email id %d", event.summary, email.id)
+                logger.info(
+                    "Saving event '%s' from email id %d", event.summary, email.id
+                )
                 event.email_id = email.id
 
                 try:
@@ -153,7 +154,9 @@ async def main(settings: Settings):
                         email.id,
                     )
             logger.debug(
-                "Generated the following events from email id %d: %s", email.id, event_objs
+                "Generated the following events from email id %d: %s",
+                email.id,
+                event_objs,
             )
             add_to_caldav(
                 settings.CALDAV_URL,
@@ -186,7 +189,8 @@ if __name__ == "__main__":
         try:
             asyncio.run(
                 schedule_run(
-                    lambda: main(settings), interval_seconds=settings.INTERVAL_MINUTES * 60
+                    lambda: main(settings),
+                    interval_seconds=settings.INTERVAL_MINUTES * 60,
                 )
             )
         except KeyboardInterrupt:
