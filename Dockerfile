@@ -32,4 +32,7 @@ COPY --from=build /app/.venv .venv
 COPY --from=build /app/pyproject.toml .
 COPY --from=build /app/uv.lock .
 
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["python", "src/main.py", "healthcheck"]
+
 ENTRYPOINT ["python", "src/main.py"]

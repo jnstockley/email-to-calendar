@@ -10,7 +10,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src import logger
+from util.logging import logger
 
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
@@ -134,7 +134,7 @@ def get_system_prompt(email: EMail) -> str:
         - Description: Get the delivery date of an email by its event's email ID
         - Input: The event to find the delivery date for
         - Output: A string representing the email delivery date in ISO-8601 format (YYYY-MM-DDTHH:MM:SS) or null if the email ID does not exist"""
-    
+
     '''# save_event
         - Description: Save the event to the database
         - Input: The event object to save

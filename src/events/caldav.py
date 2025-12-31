@@ -2,7 +2,7 @@
 from caldav import DAVClient, Calendar
 from pydantic import AnyUrl
 
-from src import logger
+from util.logging import logger
 
 from src.model.event import Event
 

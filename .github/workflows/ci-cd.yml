@@ -75,11 +75,6 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-      - name: Step 7 - Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
 
   pypi-publish:
     if: github.event_name == 'release' || github.ref_name == 'main'
@@ -131,8 +126,18 @@ jobs:
           # Replace version in pyproject.toml with the release tag (without 'v' prefix if present)
           VERSION=${{ env.VERSION }}
           DESCRIPTION="${{ steps.get-repo-description.outputs.result }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          REPO_GIT_URL="https://github.com/${{ github.repository }}.git"
+          ISSUES_URL="https://github.com/${{ github.repository }}/issues"
+          AUTHOR_NAME="${{ github.actor }}"
+          AUTHOR_EMAIL="${{ github.actor }}@users.noreply.github.com"
+
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
           sed -i "s/^description = \".*\"/description = \"$DESCRIPTION\"/" pyproject.toml
+          sed -i "s|^Homepage = \".*\"|Homepage = \"$REPO_URL\"|" pyproject.toml
+          sed -i "s|^Repository = \".*\"|Repository = \"$REPO_GIT_URL\"|" pyproject.toml
+          sed -i "s|^Issues = \".*\"|Issues = \"$ISSUES_URL\"|" pyproject.toml
+          sed -i "s/{ name = \"[^\"]*\", email = \"[^\"]*\"/{ name = \"$AUTHOR_NAME\", email = \"$AUTHOR_EMAIL\"/" pyproject.toml
 
       - name: Step 8 - Build package
         run: uv build
@@ -276,7 +281,7 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.vendor=${{ github.actor }}
-            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.licenses=GPL-3.0-or-later
             org.opencontainers.image.ref.name=${{ github.ref_name }}
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.description=${{ steps.get-repo-description.outputs.result }}
@@ -291,7 +296,7 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.vendor=${{ github.actor }}
-            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.licenses=GPL-3.0-or-later
             org.opencontainers.image.ref.name=${{ github.ref_name }}
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.description=${{ steps.get-repo-description.outputs.result }}
