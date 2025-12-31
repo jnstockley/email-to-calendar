@@ -122,3 +122,39 @@ def add_to_caldav(
             except Exception as e:
                 logger.error(f"Failed to add event {event.summary} to CalDAV: {e}")
                 raise e
+
+
+def delete_from_caldav(
+    url: AnyUrl, username: str, password: str, calendar_name: str, event: Event
+):
+    if event.in_calendar and event.caldav_id:
+        with authenticate_caldav(url, username, password) as client:
+            principal = client.principal()
+            calendars: list[Calendar] = principal.calendars()
+
+            calendar: Calendar = [
+                cal for cal in calendars if cal.name == calendar_name
+            ][0]
+            if not calendar:
+                logger.error(f"Calendar '{calendar_name}' not found.")
+                raise ValueError(f"Calendar '{calendar_name}' not found.")
+
+            cal_event = _find_caldav_event_by_id(calendar, event.caldav_id)
+            if not cal_event:
+                logger.warning(f"Event with caldav_id '{event.caldav_id}' not found.")
+                raise ValueError(f"Event with caldav_id '{event.caldav_id}' not found.")
+
+            try:
+                logger.info(
+                    f"Deleting event with caldav_id '{event.caldav_id}' from CalDAV calendar '{calendar_name}'"
+                )
+                cal_event.delete()
+            except Exception as e:
+                logger.error(
+                    f"Failed to delete event with caldav_id '{event.caldav_id}': {e}"
+                )
+                raise e
+    else:
+        logger.warning(
+            f"Event id '{event.id}' is not in CalDAV or has no caldav_id; skipping deletion."
+        )

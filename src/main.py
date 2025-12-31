@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 from datetime import timedelta
 
 from pydantic_ai.models import Model
@@ -7,14 +8,20 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel
 
 from src import logger
-from src.events.caldav import add_to_caldav
+from src.events.caldav import add_to_caldav, delete_from_caldav
 from src.mail import mail
 from src.db import engine
 from src.model.ai import OpenAICredential, OllamaCredential, DockerCredential
-from src.model.email import EMail
+from src.model.email import EMail, EMailType
 from src.model.event import Event
 from src.util import ai
-from src.util.ai import build_model, Provider, build_agent, AgentDependencies
+from src.util.ai import (
+    build_model,
+    Provider,
+    build_agent,
+    AgentDependencies,
+    build_cleanup_agent,
+)
 from src.util.env import get_settings, Settings
 from src.util.notifications import send_success_notification, send_failure_notification
 
@@ -51,7 +58,7 @@ async def generate_events_from_email(
     email: EMail, settings: Settings, model: Model
 ) -> list[Event]:
     logger.info("Generating events from email id %d", email.id)
-    if email.email_type == "html":
+    if email.email_type == EMailType.HTML:
         logger.debug("Converting HTML email to Markdown for email id %d", email.id)
         email.body = ai.html_to_md(email.body)
 
@@ -72,8 +79,45 @@ async def generate_events_from_email(
     return events
 
 
+async def cleanup_db_events(events: list[Event], settings: Settings, model: Model):
+    logger.info("Cleaning up database events")
+
+    agent = build_cleanup_agent(model, settings.AI_MAX_RETRIES)
+
+    deps = AgentDependencies(email=None)
+
+    # Convert Event objects to dictionaries and handle datetime serialization
+    events_dict = []
+    for event in events:
+        event_dict = event.model_dump()
+        if isinstance(event_dict.get('start'), datetime.datetime):
+            event_dict['start'] = event_dict['start'].isoformat()
+        if isinstance(event_dict.get('end'), datetime.datetime):
+            event_dict['end'] = event_dict['end'].isoformat()
+        events_dict.append(event_dict)
+
+    event_json = json.dumps(events_dict)
+
+    logger.debug("Event JSON %s", event_json)
+
+    results = await agent.run(event_json, deps=deps)
+    events: list[Event] = results.output.events
+
+    for event in events:
+        logger.info("Deleting event '%s' with id %d", event.summary, event.id)
+        '''delete_from_caldav(
+            settings.CALDAV_URL,
+            settings.CALDAV_USERNAME,
+            settings.CALDAV_PASSWORD,
+            settings.CALDAV_CALENDAR,
+            event,
+        )'''
+        #Event.get_by_id(event.id).delete()
+
+
 async def schedule_run(task_coro, interval_seconds: int):
     while True:
+        logger.info("Checking for new emails to process...")
         start = asyncio.get_event_loop().time()
         try:
             await task_coro()
@@ -81,6 +125,7 @@ async def schedule_run(task_coro, interval_seconds: int):
             logger.exception("Unhandled exception in scheduled run")
         elapsed = asyncio.get_event_loop().time() - start
         sleep_for = max(0, int(interval_seconds - elapsed))
+        logger.info("Sleeping for %.2f seconds before next run", sleep_for)
         await asyncio.sleep(sleep_for)
 
 
@@ -124,7 +169,7 @@ async def main(settings: Settings):
         logger.info("Starting to process email with id %d", email.id)
         start_time = datetime.datetime.now()
         try:
-            email.save()
+            '''email.save()
             if not email.body:
                 logger.warning("Email id %d has no body, skipping", email.id)
                 continue
@@ -133,7 +178,9 @@ async def main(settings: Settings):
             )
             event_objs: list[Event] = []
             for event in events:
-                logger.info("Saving event '%s' from email id %d", event.summary, email.id)
+                logger.info(
+                    "Saving event '%s' from email id %d", event.summary, email.id
+                )
                 event.email_id = email.id
 
                 try:
@@ -146,7 +193,9 @@ async def main(settings: Settings):
                         email.id,
                     )
             logger.debug(
-                "Generated the following events from email id %d: %s", email.id, event_objs
+                "Generated the following events from email id %d: %s",
+                email.id,
+                event_objs,
             )
             add_to_caldav(
                 settings.CALDAV_URL,
@@ -155,7 +204,11 @@ async def main(settings: Settings):
                 settings.CALDAV_CALENDAR,
                 event_objs,
             )
-            send_success_notification(settings.APPRISE_URL, event_objs)
+            send_success_notification(settings.APPRISE_URL, event_objs)'''
+            db_events = Event.get_all()
+            if db_events:
+                await cleanup_db_events(db_events, settings, model)
+
         except Exception as e:
             error_message = f"Error generating events from email id {email.id}"
             logger.error(error_message, e)
