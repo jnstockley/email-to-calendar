@@ -1,7 +1,13 @@
-<<<<<<< HEAD
 import asyncio
 import datetime
 from datetime import timedelta
+
+import sys
+
+from dotenv import load_dotenv
+
+from util.healthcheck import healthcheck
+from util.logging import logger
 
 from pydantic_ai.models import Model
 from sqlalchemy.exc import IntegrityError
@@ -172,32 +178,16 @@ async def main(settings: Settings):
 
 
 if __name__ == "__main__":
-    settings = get_settings()
-    try:
-        asyncio.run(
-            schedule_run(
-                lambda: main(settings), interval_seconds=settings.INTERVAL_MINUTES * 60
-            )
-        )
-    except KeyboardInterrupt:
-        logger.info("Program interrupted by user, shutting down.")
-=======
-import sys
-
-from dotenv import load_dotenv
-
-from util.healthcheck import healthcheck
-from util.logging import logger
-
-
-def main():
-    logger.info("Hello from python-starter!")
-
-
-if __name__ == "__main__":
     load_dotenv()
     if len(sys.argv) > 1 and sys.argv[1] == "healthcheck":
         healthcheck()
     else:
-        main()
->>>>>>> external/main
+        settings = get_settings()
+        try:
+            asyncio.run(
+                schedule_run(
+                    lambda: main(settings), interval_seconds=settings.INTERVAL_MINUTES * 60
+                )
+            )
+        except KeyboardInterrupt:
+            logger.info("Program interrupted by user, shutting down.")
