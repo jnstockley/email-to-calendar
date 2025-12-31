@@ -185,6 +185,7 @@ name = "email-to-calendar"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+<<<<<<< HEAD
     { name = "apprise" },
     { name = "caldav" },
     { name = "imapclient" },
@@ -195,6 +196,9 @@ dependencies = [
     { name = "sqlmodel" },
     { name = "tzlocal" },
     { name = "vobject" },
+=======
+    { name = "python-dotenv" },
+>>>>>>> external/main
 ]
 
 [package.dev-dependencies]
@@ -205,6 +209,7 @@ dev = [
 ]
 
 [package.metadata]
+<<<<<<< HEAD
 requires-dist = [
     { name = "apprise", specifier = "==1.9.6" },
     { name = "caldav", specifier = "==2.2.3" },
@@ -217,6 +222,9 @@ requires-dist = [
     { name = "tzlocal", specifier = "==5.3.1" },
     { name = "vobject", specifier = "==0.9.9" },
 ]
+=======
+requires-dist = [{ name = "python-dotenv", specifier = "==1.2.1" }]
+>>>>>>> external/main
 
 [package.metadata.requires-dev]
 dev = [
@@ -766,6 +774,7 @@ wheels = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -971,6 +980,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/f2/05f29bc3913aea15eb670be136045bf5c5bbf4b99ecb839da9b422bb2c85/requests-oauthlib-2.0.0.tar.gz", hash = "sha256:b3dffaebd884d8cd778494369603a9e7b58d29111bf6b41bdc2dcd87203af4e9", size = 55650, upload-time = "2024-03-22T20:32:29.939Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/5d/63d4ae3b9daea098d5d6f5da83984853c1bbacd5dc826764b249fe119d24/requests_oauthlib-2.0.0-py2.py3-none-any.whl", hash = "sha256:7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36", size = 24179, upload-time = "2024-03-22T20:32:28.055Z" },
+=======
+name = "python-dotenv"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/26/19cadc79a718c5edbec86fd4919a6b6d3f681039a2f6d66d14be94e75fb9/python_dotenv-1.2.1.tar.gz", hash = "sha256:42667e897e16ab0d66954af0e60a9caa94f0fd4ecf3aaf6d2d260eec1aa36ad6", size = 44221, upload-time = "2025-10-26T15:12:10.434Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/1b/a298b06749107c305e1fe0f814c6c74aea7b2f1e10989cb30f544a1b3253/python_dotenv-1.2.1-py3-none-any.whl", hash = "sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61", size = 21230, upload-time = "2025-10-26T15:12:09.109Z" },
+>>>>>>> external/main
 ]
 
 [[package]]

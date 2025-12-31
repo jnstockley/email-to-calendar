@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+
+set -e
+
 IFS=$'\n\t'
 
 # Run Python linter
-uv run ruff check
-uv run ruff format --check
+uv run ruff check --exit-non-zero-on-fix
+uv run ruff format --check --exit-non-zero-on-format
 
 # Run Shell linter, ignoring files in .gitignore
 git ls-files --cached --others --exclude-standard |
