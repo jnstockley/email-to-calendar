@@ -193,6 +193,7 @@ async def main(settings: Settings):
     else:
         logger.info("No new emails to process.")
 
+
 if __name__ == "__main__":
     load_dotenv()
     if len(sys.argv) > 1 and sys.argv[1] == "healthcheck":
