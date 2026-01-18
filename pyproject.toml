@@ -7,15 +7,29 @@ requires-python = ">=3.13, <4.0"
 dependencies = [
     "apprise==1.9.6",
     "caldav==2.2.3",
-    "imapclient==3.0.1",
+    "imapclient==3.1.0",
     "markdownify==1.2.2",
-    "pydantic-ai-slim[openai]==1.39.0",
+    "pydantic-ai-slim[openai]==1.44.0",
     "pydantic-settings==2.12.0",
     "pydantic[email]==2.12.5",
     "sqlmodel==0.0.31",
     "tzlocal==5.3.1",
     "vobject==0.9.9",
+    "python-dotenv==1.2.1",
 ]
+license-files = ["LICENSE"]
+authors = [
+    { name = "Jack Stockley", email = "jack@jstockley.com"}
+]
+keywords = ["starter", "template", "python"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/jnstockley/python-starter"
+Repository = "https://github.com/jnstockley/python-starter.git"
+Issues = "https://github.com/jnstockley/python-starter/issues"
 
 [dependency-groups]
 dev = [

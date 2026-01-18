@@ -1,4 +1,4 @@
-FROM dhi.io/python:3.13.11-dev AS  build
+FROM dhi.io/python:3.14.2-dev AS  build
 
 ARG VERSION=0.0.0.dev
 
@@ -17,7 +17,7 @@ COPY ./uv.lock .
 RUN uv version ${VERSION} && \
     uv sync --frozen --no-cache --no-dev
 
-FROM dhi.io/python:3.13.11
+FROM dhi.io/python:3.14.2
 
 # Set up environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -31,5 +31,8 @@ COPY . .
 COPY --from=build /app/.venv .venv
 COPY --from=build /app/pyproject.toml .
 COPY --from=build /app/uv.lock .
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["python", "src/main.py", "healthcheck"]
 
 ENTRYPOINT ["python", "src/main.py"]

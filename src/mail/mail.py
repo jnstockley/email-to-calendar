@@ -5,7 +5,7 @@ from email.policy import default
 from email.utils import parsedate_to_datetime
 from typing import Optional
 
-from src import logger
+from util.logging import logger
 from src.model.email import EMail
 from src.util.env import Settings
 

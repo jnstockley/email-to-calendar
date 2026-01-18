@@ -3,12 +3,18 @@ import datetime
 import json
 from datetime import timedelta
 
+import sys
+
+from dotenv import load_dotenv
+
+from util.healthcheck import healthcheck
+from util.logging import logger
+
 from pydantic_ai.models import Model
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel
 
-from src import logger
-from src.events.caldav import add_to_caldav, delete_from_caldav
+from src.events.caldav import add_to_caldav
 from src.mail import mail
 from src.db import engine
 from src.model.ai import OpenAICredential, OllamaCredential, DockerCredential
@@ -224,12 +230,17 @@ async def main(settings: Settings):
 
 
 if __name__ == "__main__":
-    settings = get_settings()
-    try:
-        asyncio.run(
-            schedule_run(
-                lambda: main(settings), interval_seconds=settings.INTERVAL_MINUTES * 60
+    load_dotenv()
+    if len(sys.argv) > 1 and sys.argv[1] == "healthcheck":
+        healthcheck()
+    else:
+        settings = get_settings()
+        try:
+            asyncio.run(
+                schedule_run(
+                    lambda: main(settings),
+                    interval_seconds=settings.INTERVAL_MINUTES * 60,
+                )
             )
-        )
-    except KeyboardInterrupt:
-        logger.info("Program interrupted by user, shutting down.")
+        except KeyboardInterrupt:
+            logger.info("Program interrupted by user, shutting down.")

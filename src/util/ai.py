@@ -10,7 +10,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src import logger
+from util.logging import logger
 
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
