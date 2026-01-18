@@ -126,7 +126,7 @@ async def main(settings: Settings):
     finally:
         client.logout()
 
-    if settings.BACKFILL:
+    if not settings.BACKFILL:
         emails = emails[-1:] if emails else []
 
     logger.info("Retrieved %d emails", len(emails))
