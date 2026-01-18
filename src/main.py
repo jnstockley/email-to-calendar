@@ -17,10 +17,15 @@ from src.events.caldav import add_to_caldav
 from src.mail import mail
 from src.db import engine
 from src.model.ai import OpenAICredential, OllamaCredential, DockerCredential
-from src.model.email import EMail
+from src.model.email import EMail, EMailType
 from src.model.event import Event
 from src.util import ai
-from src.util.ai import build_model, Provider, build_agent, AgentDependencies
+from src.util.ai import (
+    build_model,
+    Provider,
+    build_agent,
+    AgentDependencies,
+)
 from src.util.env import get_settings, Settings
 from src.util.notifications import send_success_notification, send_failure_notification
 
@@ -57,7 +62,7 @@ async def generate_events_from_email(
     email: EMail, settings: Settings, model: Model
 ) -> list[Event]:
     logger.info("Generating events from email id %d", email.id)
-    if email.email_type == "html":
+    if email.email_type == EMailType.HTML:
         logger.debug("Converting HTML email to Markdown for email id %d", email.id)
         email.body = ai.html_to_md(email.body)
 
@@ -80,6 +85,7 @@ async def generate_events_from_email(
 
 async def schedule_run(task_coro, interval_seconds: int):
     while True:
+        logger.info("Checking for new emails to process...")
         start = asyncio.get_event_loop().time()
         try:
             await task_coro()
@@ -87,6 +93,7 @@ async def schedule_run(task_coro, interval_seconds: int):
             logger.exception("Unhandled exception in scheduled run")
         elapsed = asyncio.get_event_loop().time() - start
         sleep_for = max(0, int(interval_seconds - elapsed))
+        logger.info("Sleeping for %.2f seconds before next run", sleep_for)
         await asyncio.sleep(sleep_for)
 
 
@@ -119,65 +126,72 @@ async def main(settings: Settings):
     finally:
         client.logout()
 
-    if settings.BACKFILL:
+    if not settings.BACKFILL:
         emails = emails[-1:] if emails else []
 
     logger.info("Retrieved %d emails", len(emails))
 
     model = create_model(settings)
 
-    for email in emails:
-        logger.info("Starting to process email with id %d", email.id)
-        start_time = datetime.datetime.now()
-        try:
-            email.save()
-            if not email.body:
-                logger.warning("Email id %d has no body, skipping", email.id)
-                continue
-            events: list[Event] = await generate_events_from_email(
-                email, settings, model
-            )
-            event_objs: list[Event] = []
-            for event in events:
-                logger.info(
-                    "Saving event '%s' from email id %d", event.summary, email.id
-                )
-                event.email_id = email.id
+    processed_email_ids = {email.id for email in EMail.get_all()}
+    emails = [email for email in emails if email.id not in processed_email_ids]
 
-                try:
-                    event = event.save()
-                    event_objs.append(event)
-                except IntegrityError:
-                    logger.warning(
-                        "Event '%s' from email id %d already exists in the database, skipping",
-                        event.summary,
-                        email.id,
+    if emails:
+        for email in emails:
+            logger.info("Starting to process email with id %d", email.id)
+            start_time = datetime.datetime.now()
+            try:
+                email.save()
+                if not email.body:
+                    logger.warning("Email id %d has no body, skipping", email.id)
+                    continue
+                events: list[Event] = await generate_events_from_email(
+                    email, settings, model
+                )
+                event_objs: list[Event] = []
+                for event in events:
+                    logger.info(
+                        "Saving event '%s' from email id %d", event.summary, email.id
                     )
-            logger.debug(
-                "Generated the following events from email id %d: %s",
-                email.id,
-                event_objs,
-            )
-            add_to_caldav(
-                settings.CALDAV_URL,
-                settings.CALDAV_USERNAME,
-                settings.CALDAV_PASSWORD,
-                settings.CALDAV_CALENDAR,
-                event_objs,
-            )
-            send_success_notification(settings.APPRISE_URL, event_objs)
-        except Exception as e:
-            error_message = f"Error generating events from email id {email.id}"
-            logger.error(error_message, e)
-            send_failure_notification(settings.APPRISE_URL, error_message)
-        finally:
-            end_time = datetime.datetime.now()
-            duration = (end_time - start_time).total_seconds()
-            logger.info(
-                "Processing of email id %d completed in %.2f seconds",
-                email.id,
-                duration,
-            )
+                    event.email_id = email.id
+
+                    try:
+                        event = event.save()
+                        event_objs.append(event)
+                    except IntegrityError:
+                        logger.warning(
+                            "Event '%s' from email id %d already exists in the database, skipping",
+                            event.summary,
+                            email.id,
+                        )
+                logger.debug(
+                    "Generated the following events from email id %d: %s",
+                    email.id,
+                    event_objs,
+                )
+                add_to_caldav(
+                    settings.CALDAV_URL,
+                    settings.CALDAV_USERNAME,
+                    settings.CALDAV_PASSWORD,
+                    settings.CALDAV_CALENDAR,
+                    event_objs,
+                )
+                send_success_notification(settings.APPRISE_URL, event_objs)
+
+            except Exception as e:
+                error_message = f"Error generating events from email id {email.id}"
+                logger.error(error_message, e)
+                send_failure_notification(settings.APPRISE_URL, error_message)
+            finally:
+                end_time = datetime.datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                logger.info(
+                    "Processing of email id %d completed in %.2f seconds",
+                    email.id,
+                    duration,
+                )
+    else:
+        logger.info("No new emails to process.")
 
 
 if __name__ == "__main__":
