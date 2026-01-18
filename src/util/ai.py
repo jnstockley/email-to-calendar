@@ -148,13 +148,18 @@ def get_system_prompt(email: EMail) -> str:
         - Note: This tool MUST be called after each `save_event` call to get the most up-to-date list of events in the database, and to avoid duplicate events.
     """'''
 
-    matching = """An event is considered a duplicate if the summary has a similar meaning.
+    matching = """An event is considered a duplicate if the summary has a similar meaning and the `start` and `end` fields are around the same time.
         Example: Jack dentist and dentist appointment for Jack are considered similar.
+        Example: An event on 2023-10-22 and another on 2023-10-23, both with the summary of `Jack dentist` are considered around the same time.
+        Example: An event on 2023-10-22T10:00:00 and another on 2024-10-22T11:00:00, both with the summary of `Jack dentist` are NOT considered around the same time.
     If you find a similar event, make sure the `event.id` has the same value as the existing event in the database.
     Use the `get_delivery_date_by_event` tool to get the delivery date of the existing using the existing event's id. This tool MUST be run for each existing event found.
     Use the `get_current_email_delivery_date` tool to get the delivery date of the current. This tool MUST be run once if any existing events are found.
     Whichever delivery date is the most recent, use that event's `summary`, `start`, `end`, and `email_id` when returning the event.
     If there is no existing event found, set the `id` to `None`."""
+
+    assumptions = """These are the following assumptions you are allowed to make when parsing the email:
+    - If an event spans multiple days, it is an all-day event."""
 
     failure_message = """If there are no events found within the context or the email, respond with an empty array: [].
     If you cannot parse an event line fully or are not 100% sure of the result, skip that line and do not include it in the output, it is better to miss an event than to include an incorrect one.
@@ -166,7 +171,26 @@ def get_system_prompt(email: EMail) -> str:
     - "all_day": A boolean indicating whether the event is an all-day event (true) or has a specific time (false).
     - "summary": A brief summary or title of the event in Sentence case."""
 
-    return f"{persona}\n\n{context}\n\n{tools}\n\n{matching}\n\n{failure_message}\n\n{output}"
+    return f"{persona}\n\n{context}\n\n{tools}\n\n{matching}\n\n{assumptions}\n\n{failure_message}\n\n{output}"
+
+
+def get_cleanup_system_prompt() -> str:
+    persona = """Act as a high level personal assistant for a C level executive who's main responsibility is managing 
+        their calendar and ensuring there are no duplicate events."""
+
+    task = """You will be provided A JSON representation of events within their calendar. You must identity any 
+    duplicate events, determine the correct event to keep, based on when the event was created, and return a JSON array of the event(s) to delete."""
+
+    failure_message = """If there are no duplicate events found within the context, respond with an empty array: [].
+    If you cannot determine which event to delete, skip that event and do not include it in the output, it is better to miss an event than to delete the wrong one."""
+
+    output = """You must respond with a JSON array of objects, each object representing a calendar event with the following fields:
+        - "start": The star" date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+        - "end": The end date of the event in ISO-8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).
+        - "all_day": A boolean indicating whether the event is an all-day event (true) or has a specific time (false).
+        - "summary": A brief summary or title of the event in Sentence case."""
+
+    return f"{persona}\n\n{task}\n\n{failure_message}\n\n{output}"
 
 
 def build_model(provider: Provider, model_name: str, credential: Credential) -> Model:
