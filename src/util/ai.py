@@ -234,19 +234,6 @@ def build_model(provider: Provider, model_name: str, credential: Credential) -> 
         raise ValueError(f"Unsupported provider: {provider}")
 
 
-def build_cleanup_agent(model: Model, max_retries: int = 3) -> Agent:
-    logger.debug("Building Cleanup AI agent")
-    return Agent(
-        model,
-        deps_type=AgentDependencies,
-        output_type=Events,
-        system_prompt=[
-            get_cleanup_system_prompt(),
-        ],
-        retries=max_retries,
-    )
-
-
 def build_agent(model: Model, email: EMail, max_retries: int = 3) -> Agent:
     """
     Build and return an AI agent using the specified model.
