@@ -5,7 +5,7 @@ description = "Takes emails from an IMAP server, parses the body, and creates ev
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
-    "apprise==1.9.6",
+    "apprise==1.9.7",
     "caldav==2.2.3",
     "imapclient==3.1.0",
     "markdownify==1.2.2",
