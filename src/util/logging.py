@@ -3,7 +3,7 @@ import os
 
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 
-log_dir = os.path.join(os.path.dirname(__file__), "..", "..", "logs")
+log_dir = os.path.join(os.getenv("LOG_DIR", "../logs"))
 os.makedirs(log_dir, exist_ok=True)
 
 
