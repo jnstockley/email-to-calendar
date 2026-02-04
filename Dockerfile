@@ -1,4 +1,4 @@
-FROM dhi.io/python:3.14.2-dev AS  build
+FROM dhi.io/python:3.14.3-dev AS  build
 
 ARG VERSION=0.0.0.dev
 
@@ -17,7 +17,7 @@ COPY ./uv.lock .
 RUN uv version ${VERSION} && \
     uv sync --frozen --no-cache --no-dev
 
-FROM dhi.io/python:3.14.2
+FROM dhi.io/python:3.14.3
 
 # Set up environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1
