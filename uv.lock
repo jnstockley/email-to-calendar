@@ -56,7 +56,7 @@ wheels = [
 
 [[package]]
 name = "caldav"
-version = "2.2.3"
+version = "2.2.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dnspython" },
@@ -64,11 +64,13 @@ dependencies = [
     { name = "icalendar-searcher" },
     { name = "lxml" },
     { name = "niquests" },
+    { name = "python-dateutil" },
+    { name = "pyyaml" },
     { name = "recurring-ical-events" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/b9/32c2dedc33d69e01608c42572e86e47511a18a2e2fdb6431e5e5682aba8e/caldav-2.2.3.tar.gz", hash = "sha256:d53e2de4e4aee9e317b23073de6de153077729a40add1a2b2107af5a0db0949c", size = 10072173, upload-time = "2025-12-06T21:18:19.386Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/c5/2938401bb7466148d048edb2471868689749844172a1eae34327fa405183/caldav-2.2.6.tar.gz", hash = "sha256:6ccde51de20114658a85be09ac4b4da2b51ea90c75c6f6c2c5c4d5efc61187fb", size = 10001239, upload-time = "2026-02-01T14:34:11.874Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/b3/a16ed3bc5cbcdd269eaea4ae01d1c1a1cab2107dd0f1750043051194a4b0/caldav-2.2.3-py2.py3-none-any.whl", hash = "sha256:0fc5d375a15e469817ffa21276cab372f776d15dc4ba4a3ad34c3e43024f5c67", size = 121169, upload-time = "2025-12-06T21:18:08.288Z" },
+    { url = "https://files.pythonhosted.org/packages/61/33/192fdedf457c57c0bb67938459d533e6e16a3b48836834fdd1eaa680a993/caldav-2.2.6-py2.py3-none-any.whl", hash = "sha256:d6f790163daf0b98dcbae6bb9fad303332b3c4e5a5d6df0461df0bb1ff0ac221", size = 121227, upload-time = "2026-02-01T14:34:07.186Z" },
 ]
 
 [[package]]
@@ -249,14 +251,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apprise", specifier = "==1.9.7" },
-    { name = "caldav", specifier = "==2.2.3" },
+    { name = "caldav", specifier = "==2.2.6" },
     { name = "imapclient", specifier = "==3.1.0" },
     { name = "markdownify", specifier = "==1.2.2" },
     { name = "pydantic", extras = ["email"], specifier = "==2.12.5" },
-    { name = "pydantic-ai-slim", extras = ["openai"], specifier = "==1.51.0" },
+    { name = "pydantic-ai-slim", extras = ["openai"], specifier = "==1.56.0" },
     { name = "pydantic-settings", specifier = "==2.12.0" },
     { name = "python-dotenv", specifier = "==1.2.1" },
-    { name = "sqlmodel", specifier = "==0.0.31" },
+    { name = "sqlmodel", specifier = "==0.0.32" },
     { name = "tzlocal", specifier = "==5.3.1" },
     { name = "vobject", specifier = "==0.9.9" },
 ]
@@ -729,7 +731,7 @@ email = [
 
 [[package]]
 name = "pydantic-ai-slim"
-version = "1.51.0"
+version = "1.56.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "genai-prices" },
@@ -740,9 +742,9 @@ dependencies = [
     { name = "pydantic-graph" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/93/82246bf2b4c1550dfb03f0ec6fcd6d38d5841475044a2561061fb3e92a49/pydantic_ai_slim-1.51.0.tar.gz", hash = "sha256:55c6059917559580bcfc39232dbe28ee00b4963a2eb1d9554718edabde4e082a", size = 404501, upload-time = "2026-01-31T02:06:26.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/5c/3a577825b9c1da8f287be7f2ee6fe9aab48bc8a80e65c8518052c589f51c/pydantic_ai_slim-1.56.0.tar.gz", hash = "sha256:9f9f9c56b1c735837880a515ae5661b465b40207b25f3a3434178098b2137f05", size = 415265, upload-time = "2026-02-06T01:13:23.58Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/05/0f2a718b117d8c4f89871848d8bde5f9dd7b1e0903f3cba9f9d425726307/pydantic_ai_slim-1.51.0-py3-none-any.whl", hash = "sha256:09aa368a034f7adbd6fbf23ae8415cbce0de13999ca1b0ba1ae5a42157293318", size = 528636, upload-time = "2026-01-31T02:06:19.583Z" },
+    { url = "https://files.pythonhosted.org/packages/62/4b/34682036528eeb9aaf093c2073540ddf399ab37b99d282a69ca41356f1aa/pydantic_ai_slim-1.56.0-py3-none-any.whl", hash = "sha256:d657e4113485020500b23b7390b0066e2a0277edc7577eaad2290735ca5dd7d5", size = 542270, upload-time = "2026-02-06T01:13:14.918Z" },
 ]
 
 [package.optional-dependencies]
@@ -806,7 +808,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-graph"
-version = "1.51.0"
+version = "1.56.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -814,9 +816,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/b0/830861f07789c97240bcc8403547f68f9ee670b7db403fd3ead30ed5844b/pydantic_graph-1.51.0.tar.gz", hash = "sha256:6b6220c858e552df1ea76f8191bb12b13027f7e301d4f14ee593b0e55452a1a1", size = 58457, upload-time = "2026-01-31T02:06:29.327Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/03/f92881cdb12d6f43e60e9bfd602e41c95408f06e2324d3729f7a194e2bcd/pydantic_graph-1.56.0.tar.gz", hash = "sha256:5e22972dbb43dbc379ab9944252ff864019abf3c7d465dcdf572fc8aec9a44a1", size = 58460, upload-time = "2026-02-06T01:13:26.708Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/f0/5256d6dcc4f669504183c11b67fd016d2a007b687198f500a7ec22cf6851/pydantic_graph-1.51.0-py3-none-any.whl", hash = "sha256:fcd6b94ddd1fd261f25888a2b7882a21e677b9718045e40af6321238538752d1", size = 72345, upload-time = "2026-01-31T02:06:22.539Z" },
+    { url = "https://files.pythonhosted.org/packages/08/07/8c823eb4d196137c123d4d67434e185901d3cbaea3b0c2b7667da84e72c1/pydantic_graph-1.56.0-py3-none-any.whl", hash = "sha256:ec3f0a1d6fcedd4eb9c59fef45079c2ee4d4185878d70dae26440a9c974c6bb3", size = 72346, upload-time = "2026-02-06T01:13:18.792Z" },
 ]
 
 [[package]]
@@ -1183,15 +1185,15 @@ wheels = [
 
 [[package]]
 name = "sqlmodel"
-version = "0.0.31"
+version = "0.0.32"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/b8/e7cd6def4a773f25d6e29ffce63ccbfd6cf9488b804ab6fb9b80d334b39d/sqlmodel-0.0.31.tar.gz", hash = "sha256:2d41a8a9ee05e40736e2f9db8ea28cbfe9b5d4e5a18dd139e80605025e0c516c", size = 94952, upload-time = "2025-12-28T12:35:01.436Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/89/67f8964f3b2ed073fa4e95201e708291935d00e3600f36f09c1be3e279fe/sqlmodel-0.0.32.tar.gz", hash = "sha256:48e8fe4c8c3d7d8bf8468db17fa92ca680421e86cfec8b352217ef40736767be", size = 94140, upload-time = "2026-02-01T18:19:14.752Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/72/5aa5be921800f6418a949a73c9bb7054890881143e6bc604a93d228a95a3/sqlmodel-0.0.31-py3-none-any.whl", hash = "sha256:6d946d56cac4c2db296ba1541357cee2e795d68174e2043cd138b916794b1513", size = 27093, upload-time = "2025-12-28T12:35:00.108Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/de/d9b40ed2c570fd612c2abd57e4d9084a9d8eb1797447e2ce897b77b1c4b2/sqlmodel-0.0.32-py3-none-any.whl", hash = "sha256:d62f0702599592046c1a136d3512feab3d5a80e2988642ef0ed2c89b9b8b297b", size = 27416, upload-time = "2026-02-01T18:19:15.992Z" },
 ]
 
 [[package]]
