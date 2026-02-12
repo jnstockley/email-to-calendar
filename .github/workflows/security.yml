@@ -69,7 +69,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner for Docker image
         if: steps.dockerfile_check.outputs.exists == 'true' && steps.image_check.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           image-ref: '${{ github.actor }}/${{ github.event.repository.name }}:latest'
           format: 'template'
@@ -80,7 +80,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner for Python package
         if: steps.dockerfile_check.outputs.exists == 'false' || steps.image_check.outputs.exists == 'false'
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
