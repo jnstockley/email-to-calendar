@@ -10,7 +10,7 @@ dependencies = [
     "imapclient==3.1.0",
     "markdownify==1.2.2",
     "pydantic-ai-slim[openai]==1.61.0",
-    "pydantic-settings==2.13.0",
+    "pydantic-settings==2.13.1",
     "pydantic[email]==2.12.5",
     "sqlmodel==0.0.34",
     "tzlocal==5.3.1",
