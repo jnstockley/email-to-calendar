@@ -15,7 +15,7 @@ dependencies = [
     "sqlmodel==0.0.37",
     "tzlocal==5.3.1",
     "vobject==0.9.9",
-    "python-dotenv==1.2.1",
+    "python-dotenv==1.2.2",
 ]
 license-files = ["LICENSE"]
 authors = [
