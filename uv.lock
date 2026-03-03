@@ -249,6 +249,7 @@ dev = [
 ]
 
 [package.metadata]
+<<<<<<< HEAD
 requires-dist = [
     { name = "apprise", specifier = "==1.9.7" },
     { name = "caldav", specifier = "==2.2.6" },
@@ -262,6 +263,9 @@ requires-dist = [
     { name = "tzlocal", specifier = "==5.3.1" },
     { name = "vobject", specifier = "==0.9.9" },
 ]
+=======
+requires-dist = [{ name = "python-dotenv", specifier = "==1.2.2" }]
+>>>>>>> external/main
 
 [package.metadata.requires-dev]
 dev = [
@@ -889,6 +893,7 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3", size = 50135, upload-time = "2026-03-01T16:00:26.196Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a", size = 22101, upload-time = "2026-03-01T16:00:25.09Z" },
+<<<<<<< HEAD
 ]
 
 [[package]]
@@ -1095,6 +1100,8 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/f2/05f29bc3913aea15eb670be136045bf5c5bbf4b99ecb839da9b422bb2c85/requests-oauthlib-2.0.0.tar.gz", hash = "sha256:b3dffaebd884d8cd778494369603a9e7b58d29111bf6b41bdc2dcd87203af4e9", size = 55650, upload-time = "2024-03-22T20:32:29.939Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3b/5d/63d4ae3b9daea098d5d6f5da83984853c1bbacd5dc826764b249fe119d24/requests_oauthlib-2.0.0-py2.py3-none-any.whl", hash = "sha256:7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36", size = 24179, upload-time = "2024-03-22T20:32:28.055Z" },
+=======
+>>>>>>> external/main
 ]
 
 [[package]]
