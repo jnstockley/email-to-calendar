@@ -25,13 +25,7 @@ keywords = ["starter", "template", "python"]
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-<<<<<<< HEAD
 
-=======
-dependencies = [
-    "python-dotenv==1.2.2",
-]
->>>>>>> external/main
 [project.urls]
 Homepage = "https://github.com/jnstockley/python-starter"
 Repository = "https://github.com/jnstockley/python-starter.git"
