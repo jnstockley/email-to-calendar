@@ -264,7 +264,7 @@ jobs:
           echo "BASE_IMAGE=$BASE_IMAGE" >> $GITHUB_ENV
 
       - name: Step 11 - Build and push Docker images
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
