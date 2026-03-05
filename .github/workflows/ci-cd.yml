@@ -198,7 +198,7 @@ jobs:
       - name: Step 7 - Extract metadata for release
         id: release
         if: github.event_name == 'release' && !github.event.release.prerelease
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
@@ -210,7 +210,7 @@ jobs:
       - name: Step 7 - Extract metadata for pre-release
         id: testing
         if: github.event_name == 'release' && github.event.release.prerelease
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
@@ -222,7 +222,7 @@ jobs:
       - name: Step 7 - Extract metadata for main branch
         id: dev
         if: github.ref_name == 'main'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
