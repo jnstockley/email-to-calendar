@@ -1,15 +1,16 @@
 # python
 from caldav import DAVClient, Calendar
+from caldav.davclient import get_davclient
 from pydantic import AnyUrl
 
-from util.logging import logger
 
 from src.model.event import Event
+from src.util.logging import logger
 
 
 def authenticate_caldav(url: AnyUrl, username: str, password: str) -> DAVClient:
-    return DAVClient(
-        url.encoded_string(),
+    return get_davclient(
+        url=url.encoded_string(),
         username=username,
         password=password,
         headers={"User-Agent": "email-to-calendar/1.0"},
@@ -17,7 +18,7 @@ def authenticate_caldav(url: AnyUrl, username: str, password: str) -> DAVClient:
 
 
 def _find_caldav_event_by_id(calendar: Calendar, caldav_id: str):
-    for ev in calendar.events():
+    for ev in calendar.get_events():
         # try common attributes first
         for attr in ("id", "href", "url"):
             val = getattr(ev, attr, None)
@@ -39,7 +40,7 @@ def add_to_caldav(
     with authenticate_caldav(url, username, password) as client:
         principal = client.principal()
         ## The principals calendars can be fetched like this:
-        calendars: list[Calendar] = principal.calendars()
+        calendars: list[Calendar] = principal.get_calendars()
 
         calendar: Calendar = [cal for cal in calendars if cal.name == calendar_name][0]
         if not calendar:
@@ -130,7 +131,7 @@ def delete_from_caldav(
     if event.in_calendar and event.caldav_id:
         with authenticate_caldav(url, username, password) as client:
             principal = client.principal()
-            calendars: list[Calendar] = principal.calendars()
+            calendars: list[Calendar] = principal.get_calendars()
 
             calendar: Calendar = [
                 cal for cal in calendars if cal.name == calendar_name
