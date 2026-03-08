@@ -56,7 +56,7 @@ wheels = [
 
 [[package]]
 name = "caldav"
-version = "3.0.0"
+version = "3.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dnspython" },
@@ -68,9 +68,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "recurring-ical-events" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/11/0ca7f5abe67c17db12c3a1bc5e49f4a9e114ef7a144007ac04ded2e9febb/caldav-3.0.0.tar.gz", hash = "sha256:002f0c675c5fbe8d8e87387e19fb1a8ef6ee74e41ecf31978fe37b48869be841", size = 10229145, upload-time = "2026-03-03T15:38:16.45Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/07/1a0127ba11ad55c449293d8893339f717851b50e1424e9f2228cab9c599d/caldav-3.0.1.tar.gz", hash = "sha256:c1fe3777f958d0dacd47d8beb18b10d1362032a9a74a46d314082bbb980da664", size = 10280185, upload-time = "2026-03-08T17:36:23.836Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/d0/173ec7ce2942515ffdf3d40835d55fe75fae50ed5e7904fadaaabcab3c85/caldav-3.0.0-py3-none-any.whl", hash = "sha256:98830afb47fada371dd07042b4d0a071d9e4987ef23048f63215479d267ea681", size = 224055, upload-time = "2026-03-03T15:38:10.117Z" },
+    { url = "https://files.pythonhosted.org/packages/11/3e/6f0ed0ae7bf86e02cca3db2062d3b17331293c2abc23f79f9428b3003305/caldav-3.0.1-py3-none-any.whl", hash = "sha256:607f93f9ac8ecb29974e705a1a1324328359677a457fd89223c04c9efcdce348", size = 224826, upload-time = "2026-03-08T17:36:16.495Z" },
 ]
 
 [[package]]
@@ -259,7 +259,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apprise", specifier = "==1.9.7" },
-    { name = "caldav", specifier = "==3.0.0" },
+    { name = "caldav", specifier = "==3.0.1" },
     { name = "imapclient", specifier = "==3.1.0" },
     { name = "markdownify", specifier = "==1.2.2" },
     { name = "pydantic", extras = ["email"], specifier = "==2.12.5" },
