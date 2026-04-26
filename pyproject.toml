@@ -5,11 +5,11 @@ description = "Takes emails from an IMAP server, parses the body, and creates ev
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
-    "apprise==1.9.9",
-    "caldav==3.1.0",
+    "apprise==1.10.0",
+    "caldav==3.2.0",
     "imapclient==3.1.0",
     "markdownify==1.2.2",
-    "pydantic-ai-slim[openai]==1.86.1",
+    "pydantic-ai-slim[openai]==1.87.0",
     "pydantic-settings==2.14.0",
     "pydantic[email]==2.13.3",
     "sqlmodel==0.0.38",
