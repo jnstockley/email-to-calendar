@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: 'dev'
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Fetch external repo and create sync branch
