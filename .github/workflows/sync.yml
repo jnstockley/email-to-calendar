@@ -51,3 +51,4 @@ jobs:
             This PR syncs changes from [jnstockley/python-starter](https://github.com/jnstockley/python-starter).
           branch: sync
           delete-branch: true
+          draft: always-true
