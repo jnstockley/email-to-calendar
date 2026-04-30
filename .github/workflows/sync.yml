@@ -12,7 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: sync
     name: Sync
+<<<<<<< HEAD
     permissions:
+=======
+    permissions:  # NOTE: This workflow needs write permissions to create branches and pull requests: Repo Settings → Actions → General → Workflow permissions
+>>>>>>> external/main
       contents: write
       pull-requests: write
     steps:
