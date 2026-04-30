@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: sync
     name: Sync
+    permissions:  # NOTE: This workflow needs write permissions to create branches and pull requests: Repo Settings → Actions → General → Workflow permissions
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v6
@@ -44,7 +47,7 @@ jobs:
         if: steps.sync.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           base: dev
           title: "Sync from python-starter"
           body: |
