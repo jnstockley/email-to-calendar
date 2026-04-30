@@ -13,7 +13,7 @@ jobs:
     environment: sync
     name: Sync
     permissions:
-      #contents: write
+      contents: write
       pull-requests: write
     steps:
       - name: Checkout target repo
@@ -54,4 +54,4 @@ jobs:
             This PR syncs changes from [jnstockley/python-starter](https://github.com/jnstockley/python-starter).
           branch: sync
           delete-branch: true
-          draft: always-true
+          #draft: always-true
