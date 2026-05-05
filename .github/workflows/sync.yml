@@ -15,6 +15,8 @@ jobs:
     permissions:  # NOTE: This workflow needs write permissions to create branches and pull requests: Repo Settings → Actions → General → Workflow permissions
       contents: write
       pull-requests: write
+      id-token: write  # required for OIDC authentication with Infisical
+
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v6
