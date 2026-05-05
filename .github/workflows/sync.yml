@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: sync
     name: Sync
-    permissions:  # NOTE: This workflow needs write permissions to create branches and pull requests: Repo Settings → Actions → General → Workflow permissions
-      contents: write
-      pull-requests: write
+    permissions:
+      id-token: write  # required for OIDC authentication with Infisical
+
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v6
@@ -43,11 +43,21 @@ jobs:
             git commit -m "Pull changes from python-starter" || true
           fi
 
+      - name: Fetch secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          domain: "https://secrets.jstockley.com"
+          project-slug: ${{ github.event.repository.name }}
+          env-slug: "prod"
+
+
       - name: Create Pull Request if differences exist
         if: steps.sync.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.GITHUB_TOKEN }}
           base: dev
           title: "Sync from python-starter"
           body: |
