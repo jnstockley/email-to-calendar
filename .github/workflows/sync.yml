@@ -12,9 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: sync
     name: Sync
-    permissions:  # NOTE: This workflow needs write permissions to create branches and pull requests: Repo Settings → Actions → General → Workflow permissions
-      contents: write
-      pull-requests: write
+    permissions:
       id-token: write  # required for OIDC authentication with Infisical
 
     steps:
