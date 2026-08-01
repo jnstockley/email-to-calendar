@@ -1,8 +1,11 @@
-import time
-import re
 import email
+import re
+import time
 from email import policy
+
 from imapclient import IMAPClient
+
+from util.logging import logger
 
 
 def idle_print_emails(
@@ -61,7 +64,7 @@ def idle_print_emails(
         while time.time() - start < payload_timeout:
             try:
                 fetch_data = client.fetch([uid], ["BODY.PEEK[]", "FLAGS"])
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # transient fetch error, wait and retry
                 time.sleep(retry_interval)
                 continue
@@ -92,7 +95,7 @@ def idle_print_emails(
                 continue
             try:
                 msg = email.message_from_bytes(raw, policy=policy.default)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"UID {uid}: failed to parse message bytes:", e)
                 processed_uids.add(uid)
                 continue
@@ -126,7 +129,7 @@ def idle_print_emails(
                 try:
                     client.idle()
                     started_idle = True
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     # servers can send unsolicited FETCH while entering IDLE; extract UIDs and process
                     msg = str(e)
                     print("IDLE start error (handled):", msg)
@@ -143,7 +146,7 @@ def idle_print_emails(
                     finally:
                         try:
                             client.idle_done()
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001
                             print("Failed to exit IDLE:", e)
 
                 if responses:
@@ -162,7 +165,8 @@ def idle_print_emails(
                                         if nested[i] == b"UID" or nested[i] == "UID":
                                             maybe_uid = nested[i + 1]
                                             uids_from_responses.append(int(maybe_uid))
-                        except Exception:
+                        except Exception as e:  # noqa: BLE001
+                            logger.error(e)
                             continue
 
                     if uids_from_responses:
@@ -176,7 +180,7 @@ def idle_print_emails(
                             else:
                                 print(f"Found {len(uids)} unseen message(s): {uids}")
                                 process_uids(client, uids)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001
                             print("Error fetching or parsing messages:", e)
 
                 time.sleep(1)

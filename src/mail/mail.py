@@ -1,13 +1,12 @@
+import email
 import imaplib
 from datetime import datetime
-import email
 from email.policy import default
 from email.utils import parsedate_to_datetime
-from typing import Optional
 
-from util.logging import logger
 from src.model.email import EMail
 from src.util.env import Settings
+from util.logging import logger
 
 
 def authenticate(settings: Settings) -> imaplib.IMAP4 | imaplib.IMAP4_SSL:
@@ -34,7 +33,7 @@ def authenticate(settings: Settings) -> imaplib.IMAP4 | imaplib.IMAP4_SSL:
 def get_emails_by_filter(
     client: imaplib.IMAP4 | imaplib.IMAP4_SSL,
     settings: Settings,
-    since: Optional[datetime] = None,
+    since: datetime | None = None,
 ):
     search_str: str = ""
     if settings.FILTER_FROM_EMAIL:
@@ -167,7 +166,7 @@ def __get_email(client: imaplib.IMAP4 | imaplib.IMAP4_SSL, email_id: str) -> byt
     return raw
 
 
-def __fetch_first_bytes(client, email_id: str, spec: str) -> Optional[bytes]:
+def __fetch_first_bytes(client, email_id: str, spec: str) -> bytes | None:
     status, msg_data = client.fetch(email_id, spec)
     if status != "OK" or not msg_data:
         return None

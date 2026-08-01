@@ -1,24 +1,21 @@
 from dataclasses import dataclass
 
-from bs4 import BeautifulSoup
 import markdownify
+from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
-
 from pydantic_ai import Agent, ModelSettings, RunContext
 from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from util.logging import logger
-
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.ollama import OllamaProvider
-
 from src.db import engine
-from src.model.ai import Provider, Credential
+from src.model.ai import Credential, Provider
 from src.model.email import EMail
 from src.model.event import Event
+from util.logging import logger
 
 
 @dataclass
