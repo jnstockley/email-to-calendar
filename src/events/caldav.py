@@ -1,8 +1,7 @@
 # python
-from caldav import DAVClient, Calendar
+from caldav import Calendar, DAVClient
 from caldav.davclient import get_davclient
 from pydantic import AnyUrl
-
 
 from src.model.event import Event
 from src.util.logging import logger
@@ -29,7 +28,8 @@ def _find_caldav_event_by_id(calendar: Calendar, caldav_id: str):
             uid = ev.vobject_instance.vevent.uid.value
             if uid == caldav_id:
                 return ev
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            logger.error(e)
             continue
     return None
 
@@ -42,7 +42,7 @@ def add_to_caldav(
         ## The principals calendars can be fetched like this:
         calendars: list[Calendar] = principal.get_calendars()
 
-        calendar: Calendar = [cal for cal in calendars if cal.name == calendar_name][0]
+        calendar: Calendar = next(cal for cal in calendars if cal.name == calendar_name)
         if not calendar:
             logger.error(f"Calendar '{calendar_name}' not found.")
             raise ValueError(f"Calendar '{calendar_name}' not found.")
@@ -76,7 +76,7 @@ def add_to_caldav(
                                 vevent.dtend.value = event.end
                             # persist changes
                             cal_event.save()
-                        except Exception:
+                        except Exception:  # noqa: BLE001
                             # If direct vobject manipulation isn't supported, fallback to deleting+adding
                             logger.warning(
                                 "Direct vobject update failed; falling back to replace (delete + add)."
@@ -87,7 +87,7 @@ def add_to_caldav(
                                 logger.error(
                                     f"Failed to delete existing CalDAV event: {e}"
                                 )
-                                raise e
+                                raise
                             new_cal_event = calendar.add_event(
                                 dtstart=event.start,
                                 dtend=event.end,
@@ -105,7 +105,7 @@ def add_to_caldav(
                     logger.error(
                         f"Failed to update event {event.summary} in CalDAV: {e}"
                     )
-                    raise e
+                    raise
 
             # Default: add new event
             try:
@@ -122,7 +122,7 @@ def add_to_caldav(
                 event.save_to_caldav()
             except Exception as e:
                 logger.error(f"Failed to add event {event.summary} to CalDAV: {e}")
-                raise e
+                raise
 
 
 def delete_from_caldav(
@@ -133,9 +133,9 @@ def delete_from_caldav(
             principal = client.principal()
             calendars: list[Calendar] = principal.get_calendars()
 
-            calendar: Calendar = [
+            calendar: Calendar = next(
                 cal for cal in calendars if cal.name == calendar_name
-            ][0]
+            )
             if not calendar:
                 logger.error(f"Calendar '{calendar_name}' not found.")
                 raise ValueError(f"Calendar '{calendar_name}' not found.")
@@ -154,7 +154,7 @@ def delete_from_caldav(
                 logger.error(
                     f"Failed to delete event with caldav_id '{event.caldav_id}': {e}"
                 )
-                raise e
+                raise
     else:
         logger.warning(
             f"Event id '{event.id}' is not in CalDAV or has no caldav_id; skipping deletion."

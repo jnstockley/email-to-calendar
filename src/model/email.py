@@ -1,8 +1,8 @@
-from datetime import datetime
 import enum
+from datetime import datetime
 
 import tzlocal
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import Field, SQLModel, select
 
 from src.db import Session, engine
 from src.model.event import Event

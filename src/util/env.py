@@ -1,11 +1,10 @@
 from pathlib import Path
-from typing import Optional
 
 from pydantic import (
-    Field,
-    ValidationError,
     AnyUrl,
     EmailStr,
+    Field,
+    ValidationError,
 )
 from pydantic_settings import BaseSettings
 
@@ -20,10 +19,10 @@ class Settings(BaseSettings):
     IMAP_MAILBOX: str = Field("INBOX", description="IMAP mailbox to check")
     IMAP_SSL: bool = Field(True, description="Whether to use SSL for IMAP connection")
 
-    FILTER_FROM_EMAIL: Optional[EmailStr] = Field(
+    FILTER_FROM_EMAIL: EmailStr | None = Field(
         None, description="Email address to filter messages from (optional)"
     )
-    FILTER_SUBJECT: Optional[str] = Field(None, description="Subject filter (optional)")
+    FILTER_SUBJECT: str | None = Field(None, description="Subject filter (optional)")
     BACKFILL: bool = Field(False, description="Whether to backfill all emails")
     INTERVAL_MINUTES: int = Field(
         15, ge=1, description="Interval in minutes to check for new emails"
@@ -42,17 +41,17 @@ class Settings(BaseSettings):
     HOST: str = Field("localhost", description="AI base URL")
     PORT: int = Field(11434, ge=1, le=65535, description="AI server port")
 
-    OPEN_AI_API_KEY: Optional[str] = Field(
+    OPEN_AI_API_KEY: str | None = Field(
         None, description="OpenAI API key (required if AI_PROVIDER is openai)"
     )
 
     AI_MODEL: str = Field(default=None, description="Model to use for parsing")
     AI_MAX_RETRIES: int = Field(3, ge=0, description="Maximum retries for AI parsing")
 
-    AI_SYSTEM_PROMPT: Optional[str] = Field(
+    AI_SYSTEM_PROMPT: str | None = Field(
         None, description="Custom system prompt for the AI model (optional)"
     )
-    AI_SYSTEM_PROMPT_FILE: Optional[str] = Field(
+    AI_SYSTEM_PROMPT_FILE: str | None = Field(
         None, description="Custom system prompt for the AI model (optional)"
     )
 
@@ -60,7 +59,7 @@ class Settings(BaseSettings):
         f"{Path.cwd()}/data/emails.db", description="SQLite database file path"
     )
 
-    APPRISE_URL: Optional[AnyUrl] = Field(
+    APPRISE_URL: AnyUrl | None = Field(
         None, description="Apprise notification service URL (optional)"
     )
 
@@ -85,7 +84,7 @@ def get_settings() -> Settings:
             try:
                 with open(settings.AI_SYSTEM_PROMPT_FILE, "r") as f:
                     settings.AI_SYSTEM_PROMPT = f.read()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 raise ValueError(f"Error reading system prompt file: {e}")
         return settings
     except ValidationError as exc:

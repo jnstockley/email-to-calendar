@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import (
     UniqueConstraint,
 )
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import Field, SQLModel, select
 
 from src.db import Session, engine
 

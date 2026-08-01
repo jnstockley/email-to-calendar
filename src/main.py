@@ -1,33 +1,31 @@
 import asyncio
 import datetime
+import sys
 from datetime import timedelta
 
-import sys
-
+import pytz
 from dotenv import load_dotenv
-
-from util.healthcheck import healthcheck
-from util.logging import logger
-
 from pydantic_ai.models import Model
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import SQLModel
 
+from src.db import engine
 from src.events.caldav import add_to_caldav
 from src.mail import mail
-from src.db import engine
-from src.model.ai import OpenAICredential, OllamaCredential, DockerCredential
+from src.model.ai import DockerCredential, OllamaCredential, OpenAICredential
 from src.model.email import EMail, EMailType
 from src.model.event import Event
 from src.util import ai
 from src.util.ai import (
-    build_model,
+    AgentDependencies,
     Provider,
     build_agent,
-    AgentDependencies,
+    build_model,
 )
-from src.util.env import get_settings, Settings
-from src.util.notifications import send_success_notification, send_failure_notification
+from src.util.env import Settings, get_settings
+from src.util.notifications import send_failure_notification, send_success_notification
+from util.healthcheck import healthcheck
+from util.logging import logger
 
 
 def create_model(settings: Settings) -> Model:
@@ -89,7 +87,7 @@ async def schedule_run(task_coro, interval_seconds: int):
         start = asyncio.get_event_loop().time()
         try:
             await task_coro()
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("Unhandled exception in scheduled run")
         elapsed = asyncio.get_event_loop().time() - start
         sleep_for = max(0, int(interval_seconds - elapsed))
@@ -122,7 +120,7 @@ async def main(settings: Settings):
             emails = mail.get_emails_by_filter(client, settings)
     except Exception as e:
         logger.error("An error occurred while retrieving emails", e)
-        raise e
+        raise
     finally:
         client.logout()
 
@@ -139,7 +137,7 @@ async def main(settings: Settings):
     if emails:
         for email in emails:
             logger.info("Starting to process email with id %d", email.id)
-            start_time = datetime.datetime.now()
+            start_time = datetime.datetime.now(tz=pytz.UTC)
             try:
                 email.save()
                 if not email.body:
@@ -178,12 +176,12 @@ async def main(settings: Settings):
                 )
                 send_success_notification(settings.APPRISE_URL, event_objs)
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error_message = f"Error generating events from email id {email.id}"
                 logger.error(error_message, e)
                 send_failure_notification(settings.APPRISE_URL, error_message)
             finally:
-                end_time = datetime.datetime.now()
+                end_time = datetime.datetime.now(tz=pytz.UTC)
                 duration = (end_time - start_time).total_seconds()
                 logger.info(
                     "Processing of email id %d completed in %.2f seconds",

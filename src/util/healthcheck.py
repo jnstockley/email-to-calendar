@@ -1,6 +1,8 @@
+import sys
+
 from util.logging import logger
 
 
 def healthcheck() -> bool:
     logger.info("Healthcheck passed!")
-    exit(0)
+    sys.exit(0)
