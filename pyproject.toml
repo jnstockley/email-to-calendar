@@ -9,7 +9,7 @@ dependencies = [
     "caldav==3.2.1",
     "imapclient==3.1.0",
     "markdownify==1.2.3",
-    "pydantic-ai-slim[openai]==2.27.0",
+    "pydantic-ai-slim[openai]==2.29.0",
     "pydantic-settings==2.15.0",
     "pydantic[email]==2.13.4",
     "sqlmodel==0.0.39",
