@@ -4,19 +4,6 @@ version = "0.1.0"
 description = "Takes emails from an IMAP server, parses the body, and creates event(s) in a CalDAV calendar"
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
-dependencies = [
-    "apprise==1.12.0",
-    "caldav==3.2.1",
-    "imapclient==3.1.0",
-    "markdownify==1.2.3",
-    "pydantic-ai-slim[openai]==2.29.0",
-    "pydantic-settings==2.15.0",
-    "pydantic[email]==2.13.4",
-    "sqlmodel==0.0.39",
-    "tzlocal==5.4.4",
-    "vobject==0.9.9",
-    "python-dotenv==1.2.2",
-]
 license-files = ["LICENSE"]
 authors = [
     { name = "Jack Stockley", email = "jack@jstockley.com"}
@@ -25,13 +12,19 @@ keywords = ["starter", "template", "python"]
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-<<<<<<< HEAD
-
-=======
 dependencies = [
+    "apprise==1.12.0",
+    "caldav==3.2.1",
+    "imapclient==3.1.0",
+    "markdownify==1.2.3",
+    "pydantic-ai-slim[openai]==2.31.0",
+    "pydantic-settings==2.15.0",
+    "pydantic[email]==2.13.4",
+    "sqlmodel==0.0.39",
+    "tzlocal==5.4.4",
+    "vobject==0.9.9",
     "python-dotenv==1.2.3",
 ]
->>>>>>> external/main
 [project.urls]
 Homepage = "https://github.com/jnstockley/python-starter"
 Repository = "https://github.com/jnstockley/python-starter.git"
