@@ -19,7 +19,7 @@ dependencies = [
     "markdownify==1.2.3",
     "pydantic-ai-slim[openai]==2.34.0",
     "pydantic-settings==2.15.0",
-    "pydantic[email]==2.13.4",
+    "pydantic[email]==2.13.5",
     "sqlmodel==0.0.39",
     "tzlocal==5.4.4",
     "vobject==0.9.9",
