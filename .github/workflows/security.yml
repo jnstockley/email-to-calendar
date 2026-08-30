@@ -2,10 +2,8 @@
 name: Trivy Security Scan
 
 on:
-  push:
-    branches: "main"
-  pull_request:
-    branches: "main"
+  release:
+    types: [published]
   schedule:
     - cron: '22 20 * * 3'
   workflow_dispatch:
@@ -15,94 +13,138 @@ permissions:
 
 jobs:
   scan:
-    permissions:
-      contents: read  # for actions/checkout to fetch code
-      security-events: write  # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read  # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
-      id-token: write  # required for OIDC authentication with Infisical
     name: Scan
     runs-on: ubuntu-latest
     environment: docker
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      id-token: write
     steps:
-      - name: Checkout code
+      - name: Check out the repository
         uses: actions/checkout@v7
 
-      - name: Check if Dockerfile exists
-        id: dockerfile_check
-        run: |
-          if [ -f "Dockerfile" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Get the default branch commit
+        id: default_branch
+        if: github.event_name == 'release'
+        uses: actions/github-script@v9
+        with:
+          result-encoding: string
+          script: |
+            const { data } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${context.payload.repository.default_branch}`,
+            });
+            return data.object.sha;
 
-      - name: Fetch secrets from Infisical
+      - name: Check whether a Dockerfile exists
+        id: dockerfile
+        run: echo "exists=$([ -f Dockerfile ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch Docker credentials
+        if: steps.dockerfile.outputs.exists == 'true'
         uses: Infisical/secrets-action@v1.0.17
         with:
-          method: "oidc"
+          method: oidc
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
-          domain: "https://secrets.jstockley.com"
+          domain: https://secrets.jstockley.com
           project-slug: ${{ github.event.repository.name }}
-          env-slug: "prod"
+          env-slug: prod
 
       - name: Log in to Docker Hub
-        if: steps.dockerfile_check.outputs.exists == 'true'
+        if: steps.dockerfile.outputs.exists == 'true'
         uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
-      - name: Log in to Docker Hub
-        if: steps.dockerfile_check.outputs.exists == 'true'
+      - name: Log in to Docker Hardened Images
+        if: steps.dockerfile.outputs.exists == 'true'
         uses: docker/login-action@v4
         with:
           registry: dhi.io
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        if: steps.dockerfile_check.outputs.exists == 'true' && github.event_name != 'schedule'
+      - name: Build the image being published
+        if: steps.dockerfile.outputs.exists == 'true' && github.event_name == 'release' && !github.event.release.prerelease
         run: |
-          docker build -t ${{ github.actor }}/${{ github.event.repository.name }}:latest .
-
-      - name: Check if Docker image exists or build locally
-        id: image_check
-        if: steps.dockerfile_check.outputs.exists == 'true'
-        run: |
-          if docker pull ${{ github.actor }}/${{ github.event.repository.name }}:latest >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+          if [ "$GITHUB_EVENT_NAME" != release ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
           else
-            echo "Building image locally as it doesn't exist remotely"
-            docker build -t ${{ github.actor }}/${{ github.event.repository.name }}:latest .
-            echo "exists=true" >> $GITHUB_OUTPUT
+            VERSION="$(date +'%Y%m%d%H%M%S').dev"
           fi
+          docker build \
+            --build-arg "VERSION=$VERSION" \
+            -t "${{ env.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest" .
 
-      - name: Run Trivy vulnerability scanner for Docker image
-        if: steps.dockerfile_check.outputs.exists == 'true' && steps.image_check.outputs.exists == 'true'
+      - name: Pull the latest published image
+        if: steps.dockerfile.outputs.exists == 'true' && (github.event_name != 'release' || github.event.release.prerelease)
+        run: docker pull "${{ env.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest"
+
+      - name: Scan the Docker image
+        if: steps.dockerfile.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          # Scan only the image built or pulled earlier in this job; do not fall
+          # back to resolving the same tag from a registry.
+          TRIVY_IMAGE_SRC: docker
         with:
-          image-ref: '${{ github.actor }}/${{ github.event.repository.name }}:latest'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          scanners: 'vuln,secret,misconfig'
-          severity: 'CRITICAL,HIGH'
+          version: latest
+          image-ref: '${{ env.DOCKER_USERNAME }}/${{ github.event.repository.name }}:latest'
+          format: sarif
+          output: trivy-results.sarif
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
           ignore-unfixed: true
 
-      - name: Run Trivy vulnerability scanner for Python package
-        if: steps.dockerfile_check.outputs.exists == 'false' || steps.image_check.outputs.exists == 'false'
+      - name: Set up Python
+        if: steps.dockerfile.outputs.exists == 'false'
+        uses: actions/setup-python@v7
+        with:
+          check-latest: true
+
+      - name: Install uv
+        if: steps.dockerfile.outputs.exists == 'false' && github.event_name == 'release' && !github.event.release.prerelease
+        uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Build the package being published
+        if: steps.dockerfile.outputs.exists == 'false' && github.event_name == 'release' && !github.event.release.prerelease
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="$(date +'%Y%m%d%H%M%S').dev"
+          fi
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          uv build --out-dir .trivy-package
+
+      - name: Download the latest published package
+        if: steps.dockerfile.outputs.exists == 'false' && (github.event_name != 'release' || github.event.release.prerelease)
+        run: python -m pip download --no-deps --dest .trivy-package js-python-starter
+
+      - name: Scan the Python package
+        if: steps.dockerfile.outputs.exists == 'false'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          scanners: 'vuln,secret,misconfig'
-          severity: 'CRITICAL,HIGH'
+          version: latest
+          scan-type: fs
+          scan-ref: .trivy-package
+          format: sarif
+          output: trivy-results.sarif
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          limit-severities-for-sarif: true
           ignore-unfixed: true
 
-      - name: Upload Trivy scan results to GitHub Security tab
+      - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
+          ref: ${{ github.event_name == 'release' && format('refs/heads/{0}', github.event.repository.default_branch) || github.ref }}
+          sha: ${{ github.event_name == 'release' && steps.default_branch.outputs.result || github.sha }}
