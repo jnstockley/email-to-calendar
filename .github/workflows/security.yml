@@ -109,8 +109,15 @@ jobs:
           check-latest: true
 
       - name: Install uv
-        if: steps.dockerfile.outputs.exists == 'false' && github.event_name == 'release' && !github.event.release.prerelease
+        if: steps.dockerfile.outputs.exists == 'false'
         uses: astral-sh/setup-uv@v10.0.1
+
+      - name: Get the package name
+        id: package_name
+        if: steps.dockerfile.outputs.exists == 'false'
+        run: |
+          NAME=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['name'])")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Build the package being published
         if: steps.dockerfile.outputs.exists == 'false' && github.event_name == 'release' && !github.event.release.prerelease
@@ -122,18 +129,19 @@ jobs:
             VERSION="$(date +'%Y%m%d%H%M%S').dev"
           fi
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-          uv build --out-dir .trivy-package
+          uv build --out-dir .trivy-build
+          uv pip install --system --target .trivy-package .trivy-build/*.whl
 
-      - name: Download the latest published package
+      - name: Install the latest published package
         if: steps.dockerfile.outputs.exists == 'false' && (github.event_name != 'release' || github.event.release.prerelease)
-        run: python -m pip download --no-deps --dest .trivy-package js-python-starter
+        run: uv pip install --system --target .trivy-package "${{ steps.package_name.outputs.name }}"
 
       - name: Scan the Python package
         if: steps.dockerfile.outputs.exists == 'false'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           version: latest
-          scan-type: fs
+          scan-type: rootfs
           scan-ref: .trivy-package
           format: sarif
           output: trivy-results.sarif
