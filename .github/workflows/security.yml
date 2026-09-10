@@ -110,7 +110,7 @@ jobs:
 
       - name: Install uv
         if: steps.dockerfile.outputs.exists == 'false'
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
 
       - name: Get the package name
         id: package_name
