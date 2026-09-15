@@ -45,7 +45,7 @@ jobs:
 
       - name: Fetch Docker credentials
         if: steps.dockerfile.outputs.exists == 'true'
-        uses: Infisical/secrets-action@v1.0.17
+        uses: Infisical/secrets-action@v1.0.18
         with:
           method: oidc
           identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
