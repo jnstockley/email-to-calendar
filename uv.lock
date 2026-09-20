@@ -338,7 +338,7 @@ dev = [
 requires-dist = [
     { name = "apprise", specifier = "==1.13.1" },
     { name = "caldav", specifier = "==3.3.1" },
-    { name = "imapclient", specifier = "==4.0.1" },
+    { name = "imapclient", specifier = "==4.1.0" },
     { name = "markdownify", specifier = "==1.2.3" },
     { name = "pydantic", extras = ["email"], specifier = "==2.13.5" },
     { name = "pydantic-ai-slim", extras = ["openai"], specifier = "==2.46.0" },
@@ -522,11 +522,11 @@ wheels = [
 
 [[package]]
 name = "imapclient"
-version = "4.0.1"
+version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/af/6f/e128b98df35303d744506357d7024201abf519cc4e5ac03577f7d7be39df/imapclient-4.0.1.tar.gz", hash = "sha256:9c46f431ceecde87ae1bbb8c287cbeb20bc70bcbee3d0c3bd0c01808d28630f4", size = 69023, upload-time = "2026-09-11T12:11:49.293Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/f7/4e2d2e93313d7d7542a8378200ea931ff4e29b730d9eb5a9d8debafcbc68/imapclient-4.1.0.tar.gz", hash = "sha256:b7cefa7c9bf3ec029c007dfade191480b82eb3816fc20ab23ef48e7aec841a7f", size = 71344, upload-time = "2026-09-18T11:21:57.568Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/72/41d7acbcb9ff9ec612ebcc994fcc831ccb19cd79570a3cabba39d80c18c0/imapclient-4.0.1-py3-none-any.whl", hash = "sha256:c7dd1a175eda1cb1e99a5aeca4ea2c0b0a3ed36f13b2e677bc3447588336df27", size = 55918, upload-time = "2026-09-11T12:11:48.406Z" },
+    { url = "https://files.pythonhosted.org/packages/52/49/12fe5860e37f2e915ecbcc6c743bc71c84c6d0f4c9002f3c5a66f79b172d/imapclient-4.1.0-py3-none-any.whl", hash = "sha256:5fd62ab2a099494ed2a5a21e7bda03c1e99e3d55bdedb4e9c12c8176873a8fe4", size = 56039, upload-time = "2026-09-18T11:21:56.499Z" },
 ]
 
 [[package]]
