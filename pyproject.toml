@@ -20,7 +20,7 @@ dependencies = [
     "pydantic-ai-slim[openai]==2.46.0",
     "pydantic-settings==2.15.0",
     "pydantic[email]==2.13.5",
-    "sqlmodel==0.0.42",
+    "sqlmodel==0.0.44",
     "tzlocal==5.4.4",
     "vobject==0.9.9",
     "python-dotenv==1.2.3",
